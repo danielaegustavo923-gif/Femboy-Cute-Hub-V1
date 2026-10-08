@@ -1,4 +1,4 @@
--- Femboy Cute Hub V13.1 (Hotfix & Syntax Fix)
+-- Femboy Cute Hub V11.6 (Twin FOV Aimbots + Credits Tab + AFK + Hitbox Transparency)
 -- Made by @Soy_Haru Femboy
 -- Supported: sem título sem tag / Catalog Avatar Creator / Rivais / Murder Mystery 2
 
@@ -7,7 +7,6 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser = game:GetService("VirtualUser")
-local TextChatService = game:GetService("TextChatService")
 
 local LocalPlayer = Players.LocalPlayer
 local Cam = workspace.CurrentCamera
@@ -27,6 +26,7 @@ local currentSpeed = 100
 local currentHitboxSize = Vector3.new(12, 12, 12)
 local currentHitboxColor = Color3.fromRGB(255, 0, 0)
 local currentHitboxMaterial = Enum.Material.Plastic
+local currentHitboxTransparency = 0.6 
 
 -- Catalog Stealer States
 local JogadorSelecionado = nil
@@ -81,30 +81,6 @@ local PosicaoOriginal = nil
 
 -- Connection Storage for Clean Up
 local Connections = {}
-
--- ========================================
--- AUTOMATIC CHAT SYSTEM (Eu amo o Haru:3❤️)
--- ========================================
-task.spawn(function()
-    if not game:IsLoaded() then game.Loaded:Wait() end
-    task.wait(1.5)
-    
-    local message = "Eu amo o Haru:3❤️"
-    
-    pcall(function()
-        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-            local textChannel = TextChatService:FindFirstChild("RBXGeneral", true) or TextChatService:FindFirstChildWhichIsA("TextChannel", true)
-            if textChannel then 
-                textChannel:SendAsync(message) 
-            end
-        else
-            local sayRemote = ReplicatedStorage:FindFirstChild("SayMessageRequest", true)
-            if sayRemote and sayRemote:IsA("RemoteEvent") then
-                sayRemote:FireServer(message, "All")
-            end
-        end
-    end)
-end)
 
 -- ========================================
 -- CORE & BYPASS UTILITIES
@@ -258,27 +234,31 @@ local function encontrarInimigosRivals(pasta, lista)
 end
 
 local function getClosestRivalsTargetInFOV()
-local nearest = nil
-local last = math.huge
-local center = Cam.ViewportSize / 2
-local potenciaisAlvos = {}
-encontrarInimigosRivals(workspace, potenciaisAlvos)
-for _, obj in ipairs(potenciaisAlvos) do
-local humanoid = obj:FindFirstChildOfClass("Humanoid")
-local part = encontrarParteValida(obj, ParteAlvo)
-if humanoid and part and humanoid.Health > 0 then
-local pos, onScreen = Cam:WorldToViewportPoint(part.Position)
-if onScreen then
-local distance = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-if distance < last and distance <= rivalsFovRadius then
-nearest = obj
-last = distance
+    local nearest = nil
+    local last = math.huge
+    local center = Cam.ViewportSize / 2
+    
+    local potenciaisAlvos = {}
+    encontrarInimigosRivals(workspace, potenciaisAlvos)
+    
+    for _, obj in ipairs(potenciaisAlvos) do
+        local humanoid = obj:FindFirstChildOfClass("Humanoid")
+        local part = encontrarParteValida(obj, ParteAlvo)
+        
+        if humanoid and part and humanoid.Health > 0 then
+            local pos, onScreen = Cam:WorldToViewportPoint(part.Position)
+            if onScreen then
+                local distance = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+                if distance < last and distance <= rivalsFovRadius then
+                    nearest = obj
+                    last = distance
+                end
+            end
+        end
+    end
+    return nearest
 end
-end
-end
-end
-return nearest
-end
+
 local function gerenciarHighlights()
 for _, jogador in pairs(Players:GetPlayers()) do
 if jogador ~= LocalPlayer and jogador.Character then
@@ -531,6 +511,7 @@ callback(state)
 end)
 return switch
 end
+-- Re-engineered TextBox with safe FocusLost checking for binding updates
 local function createTextBox(parentPage, placeholder, defaultText, callback)
 local boxFrame = Instance.new("Frame")
 boxFrame.Size = UDim2.new(0.92, 0, 0, 40)
@@ -559,7 +540,9 @@ box.TextColor3 = Color3.fromRGB(0, 120, 0)
 box.TextSize = 12
 box.Parent = boxFrame
 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
-box:GetPropertyChangedSignal("Text"):Connect(function() callback(box.Text) end)
+box.FocusLost:Connect(function(enterPressed)
+callback(box.Text)
+end)
 return box
 end
 local function createButton(parentPage, text, callback)
@@ -617,6 +600,9 @@ createTextBox(combatPage, "Hitbox Material/Texture", "Plastic", function(text)
 local success, mat = pcall(function() return Enum.Material[text] end)
 if success and mat then currentHitboxMaterial = mat end
 end)
+createTextBox(combatPage, "Hitbox Transparency (0 to 1)", "0.6", function(text)
+local num = tonumber(text) if num then currentHitboxTransparency = math.clamp(num, 0, 1) end
+end)
 -- Rivais Legit Content
 createSection(rivalsPage, "Rivals Assist Engine")
 createToggle(rivalsPage, "Enable FOV Lock (Key: F)", false, function(toggled)
@@ -638,4 +624,219 @@ IndiceCorAliado = IndiceCorAliado + 1 if IndiceCorAliado > #PaletaCores then Ind
 end)
 createTextBox(rivalsPage, "FOV Radius Size", "150", function(text)
 local num = tonumber(text) if num then rivalsFovRadius = num RivalsFOVring.Radius = num end
+end)
+-- MM2 Vision Content
+createSection(mm2Page, "Murder Mystery 2 Tracking")
+createToggle(mm2Page, "Enable FOV Lock (Key: F)", false, function(toggled)
+MasterMM2Aimbot = toggled MM2FOVring.Visible = toggled
+if not toggled then MM2AimbotAtivado = false MM2AlvoAtual = nil end
+end)
+createToggle(mm2Page, "Enable Native Box ESP", false, function(toggled)
+MasterMM2ESP = toggled
+if not toggled then for _, d in pairs(CacheMM2ESP) do if d and d.Box then d.Box.Visible = false end end end
+end)
+-- Catalog Stealer Content
+createSection(stealerPage, "Outfit Stealer Logic")
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(0.92, 0, 0, 30) statusLabel.BackgroundTransparency = 0.85 statusLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+statusLabel.Text = "TARGET: NONE (SELECT BELOW)" statusLabel.TextColor3 = Color3.fromRGB(150, 0, 0) statusLabel.Font = Enum.Font.GothamBold statusLabel.TextSize = 12 statusLabel.Parent = stealerPage
+Instance.new("UICorner", statusLabel).CornerRadius = UDim.new(0, 6)
+local stealBtn = Instance.new("TextButton")
+stealBtn.Size = UDim2.new(0.92, 0, 0, 35) stealBtn.BackgroundTransparency = 0.8 stealBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+stealBtn.Text = "STEAL OUTFIT" stealBtn.Font = Enum.Font.GothamBold stealBtn.TextColor3 = Color3.fromRGB(0, 0, 0) stealBtn.TextSize = 12 stealBtn.Parent = stealerPage
+Instance.new("UICorner", stealBtn).CornerRadius = UDim.new(0, 6)
+local playerListScroll = Instance.new("ScrollingFrame")
+playerListScroll.Size = UDim2.new(0.92, 0, 0, 110) playerListScroll.BackgroundTransparency = 0.9 playerListScroll.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+playerListScroll.ScrollBarThickness = 4 playerListScroll.ScrollBarImageColor3 = Color3.fromRGB(0, 0, 0) playerListScroll.Parent = stealerPage
+Instance.new("UICorner", playerListScroll).CornerRadius = UDim.new(0, 6)
+local listLayout = Instance.new("UIListLayout") listLayout.Padding = UDim.new(0, 4) listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center listLayout.Parent = playerListScroll
+local function updatePlayerList()
+for _, child in pairs(playerListScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
+for _, player in pairs(Players:GetPlayers()) do
+if player ~= LocalPlayer then
+local pBtn = Instance.new("TextButton") pBtn.Size = UDim2.new(0.95, 0, 0, 28) pBtn.BackgroundTransparency = 0.85 pBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+pBtn.Text = player.Name pBtn.Font = Enum.Font.Gotham pBtn.TextColor3 = Color3.fromRGB(0, 0, 0) pBtn.TextSize = 11 pBtn.Parent = playerListScroll
+Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 4)
+pBtn.MouseButton1Click:Connect(function()
+JogadorSelecionado = player statusLabel.Text = "TARGET: " .. player.Name:upper() statusLabel.TextColor3 = Color3.fromRGB(0, 120, 0)
+end)
+end
+end
+end
+listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() playerListScroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10) end)
+stealBtn.MouseButton1Click:Connect(function() if JogadorSelecionado then stealOutfit(JogadorSelecionado) end end)
+Connections.PlayerAdded = Players.PlayerAdded:Connect(updatePlayerList)
+Connections.PlayerRemoving = Players.PlayerRemoving:Connect(updatePlayerList)
+updatePlayerList()
+-- Settings Page Content
+createSection(settingsPage, "Key Bindings Configuration")
+createTextBox(settingsPage, "UI Toggle Key", "F1", function(text)
+local success, key = pcall(function() return Enum.KeyCode[text] end)
+if success and key then ToggleKey = key end
+end)
+createTextBox(settingsPage, "Uninstall Script Key", "Delete", function(text)
+local success, key = pcall(function() return Enum.KeyCode[text] end)
+if success and key then DestroyKey = key end
+end)
+createSection(settingsPage, "Automation Tools")
+createToggle(settingsPage, "Enable Anti-AFK (Bypass Disconnect)", false, function(toggled)
+AntiAFKAtivado = toggled
+end)
+createToggle(settingsPage, "Enable AFK Safe Mode", false, function(toggled)
+AFKModeAtivado = toggled
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if toggled then
+if hrp then
+PosicaoOriginal = hrp.CFrame
+AFKPlatform = Instance.new("Part")
+AFKPlatform.Size = Vector3.new(20, 2, 20)
+AFKPlatform.Position = Vector3.new(hrp.Position.X, 1500, hrp.Position.Z)
+AFKPlatform.Anchored = true
+AFKPlatform.Material = Enum.Material.Glass
+AFKPlatform.Transparency = 0.5
+AFKPlatform.CanCollide = true
+AFKPlatform.Parent = workspace
+task.wait(0.1)
+hrp.CFrame = CFrame.new(AFKPlatform.Position + Vector3.new(0, 4, 0))
+end
+else
+if AFKPlatform then AFKPlatform:Destroy() AFKPlatform = nil end
+if PosicaoOriginal and hrp then
+hrp.CFrame = PosicaoOriginal
+PosicaoOriginal = nil
+end
+end
+end)
+-- Credits Page Content
+createSection(creditsPage, "Developer Information")
+local devLabel = Instance.new("TextLabel")
+devLabel.Size = UDim2.new(0.92, 0, 0, 30)
+devLabel.BackgroundTransparency = 1
+devLabel.Text = "Owner / Main Dev: Soy_Haru"
+devLabel.Font = Enum.Font.GothamBold
+devLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+devLabel.TextSize = 13
+devLabel.TextXAlignment = Enum.TextXAlignment.Left
+devLabel.Parent = creditsPage
+local ytBtn = createButton(creditsPage, "COPY YOUTUBE CHANNEL", function()
+setclipboard("youtube.com")
+creditsPage:FindFirstChild("COPY YOUTUBE CHANNEL").Frame.TextButton.Text = "COPIED YOUTUBE LINK!"
+task.delay(2, function() pcall(function() creditsPage:FindFirstChild("COPY YOUTUBE CHANNEL").Frame.TextButton.Text = "COPY YOUTUBE CHANNEL" end) end)
+end)
+local dcBtn = createButton(creditsPage, "COPY FRIEND'S DISCORD SERVER", function()
+setclipboard("discord.gg")
+creditsPage:FindFirstChild("COPY FRIEND'S DISCORD SERVER").Frame.TextButton.Text = "COPIED DISCORD LINK!"
+task.delay(2, function() pcall(function() creditsPage:FindFirstChild("COPY FRIEND'S DISCORD SERVER").Frame.TextButton.Text = "COPY FRIEND'S DISCORD SERVER" end) end)
+end)
+-- ========================================
+-- SYSTEM CORE ENGINE LOOPS
+-- ========================================
+Connections.RenderStepped = RunService.RenderStepped:Connect(function()
+if isSpeedBoostActive then
+local hum = getHumanoid() if hum and hum.WalkSpeed ~= currentSpeed then hum.WalkSpeed = currentSpeed end
+end
+if isExpanded then
+for _, p in pairs(Players:GetPlayers()) do
+if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+local hrp = p.Character.HumanoidRootPart
+hrp.Size = currentHitboxSize
+hrp.Color = currentHitboxColor
+hrp.Material = currentHitboxMaterial
+hrp.Transparency = currentHitboxTransparency
+hrp.CanCollide = false
+end
+end
+end
+if AFKModeAtivado then
+local hum = getHumanoid()
+if hum and hum.FloorMaterial ~= Enum.Material.Air then hum.Jump = true end
+end
+-- Rivais Advanced FOV Aimbot Logic
+if MasterRivalsAimbot then
+RivalsFOVring.Position = Cam.ViewportSize / 2
+if RivalsAimbotAtivado then
+if RivalsAlvoAtual and checarAlvoValidoRivals(RivalsAlvoAtual) then
+local lockPart = encontrarParteValida(RivalsAlvoAtual, ParteAlvo)
+if lockPart then Cam.CFrame = CFrame.lookAt(Cam.CFrame.Position, lockPart.Position) end
+else
+local novoAlvo = getClosestRivalsTargetInFOV() if novoAlvo then RivalsAlvoAtual = novoAlvo end
+end
+end
+end
+-- MM2 Advanced FOV Aimbot Logic
+if MasterMM2Aimbot then
+MM2FOVring.Position = Cam.ViewportSize / 2
+if MM2AimbotAtivado then
+if MM2AlvoAtual and checarAlvoValidoMM2(MM2AlvoAtual) then
+local headPart = MM2AlvoAtual:FindFirstChild("Head")
+if headPart then Cam.CFrame = CFrame.lookAt(Cam.CFrame.Position, headPart.Position) end
+else
+local novoAlvo = getClosestMM2TargetInFOV() if novoAlvo then MM2AlvoAtual = novoAlvo end
+end
+end
+end
+-- MM2 Real-time Box ESP Engine Loop
+for _, player in ipairs(Players:GetPlayers()) do
+if player ~= LocalPlayer then
+gerenciarElementoMM2ESP(player, espFolder)
+local dados = CacheMM2ESP[player]
+if MasterMM2ESP and dados then
+local char = player.Character
+local root = char and char:FindFirstChild("HumanoidRootPart")
+local hum = char and char:FindFirstChildOfClass("Humanoid")
+if root and hum and hum.Health > 0 then
+local pos, naTela = Cam:WorldToViewportPoint(root.Position)
+if naTela then
+local escala = 1000 / pos.Z local sizeX = 2.5 * escala local sizeY = 4.5 * escala
+dados.Box.Size = UDim2.new(0, sizeX, 0, sizeY) dados.Box.Position = UDim2.new(0, pos.X - sizeX / 2, 0, pos.Y - sizeY / 2)
+dados.Stroke.Color = obterCorDaFuncaoMM2(player) dados.Box.Visible = true
+else dados.Box.Visible = false end
+else dados.Box.Visible = false end
+else if dados and dados.Box then dados.Box.Visible = false end end
+end
+end
+end)
+-- Anti-AFK Listener Loop
+LocalPlayer.Idled:Connect(function()
+if AntiAFKAtivado then
+VirtualUser:Button2Down(Vector2.new(0,0), Cam.CFrame)
+task.wait(1)
+VirtualUser:Button2Up(Vector2.new(0,0), Cam.CFrame)
+end
+end)
+Connections.Stepped = RunService.Stepped:Connect(function()
+if isNoclipActive and LocalPlayer.Character then
+for _, part in pairs(LocalPlayer.Character:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide = false end end
+end
+if HighlightsAtivado then gerenciarHighlights() end
+end)
+Connections.InputBegan = UserInputService.InputBegan:Connect(function(input, gpe)
+if UserInputService:GetFocusedTextBox() then return end
+if isInfiniteJumpActive and input.KeyCode == Enum.KeyCode.Space then
+local char = LocalPlayer.Character
+if char then
+local hrp = char:FindFirstChild("HumanoidRootPart")
+if hrp then hrp.Velocity = Vector3.new(hrp.Velocity.X, 50, hrp.Velocity.Z) end
+end
+end
+if input.KeyCode == Enum.KeyCode.F then
+if MasterRivalsAimbot then
+RivalsAimbotAtivado = not RivalsAimbotAtivado if not RivalsAimbotAtivado then RivalsAlvoAtual = nil end
+end
+if MasterMM2Aimbot then
+MM2AimbotAtivado = not MM2AimbotAtivado if not MM2AimbotAtivado then MM2AlvoAtual = nil end
+end
+end
+if input.KeyCode == ToggleKey then
+mainFrame.Visible = not mainFrame.Visible
+elseif input.KeyCode == DestroyKey then
+for _, conn in pairs(Connections) do if conn then conn:Disconnect() end end
+local hum = getHumanoid() if hum then hum.WalkSpeed = 16 end
+resetAllHitboxes() HighlightsAtivado = false gerenciarHighlights()
+if AFKPlatform then AFKPlatform:Destroy() end
+espFolder:ClearAllChildren() CacheMM2ESP = {}
+RivalsFOVring.Visible = false RivalsFOVring:Remove() MM2FOVring.Visible = false MM2FOVring:Remove()
+screenGui:Destroy()
+end
 end)
