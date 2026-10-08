@@ -1,0 +1,641 @@
+-- Femboy Cute Hub V13.1 (Hotfix & Syntax Fix)
+-- Made by @Soy_Haru Femboy
+-- Supported: sem título sem tag / Catalog Avatar Creator / Rivais / Murder Mystery 2
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local TextChatService = game:GetService("TextChatService")
+
+local LocalPlayer = Players.LocalPlayer
+local Cam = workspace.CurrentCamera
+
+-- Global Customizable Keys
+local ToggleKey = Enum.KeyCode.F1
+local DestroyKey = Enum.KeyCode.Delete
+
+-- Global States
+local isExpanded = false
+local isSpeedBoostActive = false
+local isInfiniteJumpActive = false
+local isNoclipActive = false
+local currentSpeed = 100
+
+-- Hitbox Customization States
+local currentHitboxSize = Vector3.new(12, 12, 12)
+local currentHitboxColor = Color3.fromRGB(255, 0, 0)
+local currentHitboxMaterial = Enum.Material.Plastic
+
+-- Catalog Stealer States
+local JogadorSelecionado = nil
+
+-- Rivais Legit States & Rings
+local rivalsFovRadius = 150
+local MasterRivalsAimbot = false
+local RivalsAimbotAtivado = false
+local RivalsAlvoAtual = nil
+local HighlightsAtivado = false
+local IndiceParteVisual = 1
+local IndiceCorInimigo = 1
+local IndiceCorAliado = 2
+
+local ListaPartes = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+local ParteAlvo = ListaPartes[IndiceParteVisual]
+
+local PaletaCores = {
+    Color3.fromRGB(255, 0, 0),   -- Vermelho
+    Color3.fromRGB(0, 255, 0),   -- Verde
+    Color3.fromRGB(0, 100, 255), -- Azul
+    Color3.fromRGB(255, 255, 0), -- Amarelo
+    Color3.fromRGB(180, 0, 255)  -- Roxo
+}
+local MapeamentoMembros = {
+    ["Head"] = {"Head"},
+    ["Torso"] = {"HumanoidRootPart", "Torso", "UpperTorso"},
+    ["Left Arm"] = {"LeftArm", "LeftUpperArm", "LeftHand"},
+    ["Right Arm"] = {"RightArm", "RightUpperArm", "RightHand"},
+    ["Left Leg"] = {"LeftLeg", "LeftUpperLeg", "LeftFoot"},
+    ["Right Leg"] = {"RightLeg", "RightUpperLeg", "RightFoot"}
+}
+
+-- MM2 Vision States & Rings
+local mm2FovRadius = 130
+local MasterMM2ESP = false
+local MasterMM2Aimbot = false
+local MM2AimbotAtivado = false
+local MM2AlvoAtual = nil
+local CacheMM2ESP = {}
+local CoresMM2 = {
+    Murder = Color3.fromRGB(255, 0, 0),
+    Sheriff = Color3.fromRGB(0, 0, 255),
+    Innocent = Color3.fromRGB(0, 255, 0)
+}
+
+-- AFK & Anti-AFK States
+local AntiAFKAtivado = false
+local AFKModeAtivado = false
+local AFKPlatform = nil
+local PosicaoOriginal = nil
+
+-- Connection Storage for Clean Up
+local Connections = {}
+
+-- ========================================
+-- AUTOMATIC CHAT SYSTEM (Eu amo o Haru:3❤️)
+-- ========================================
+task.spawn(function()
+    if not game:IsLoaded() then game.Loaded:Wait() end
+    task.wait(1.5)
+    
+    local message = "Eu amo o Haru:3❤️"
+    
+    pcall(function()
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            local textChannel = TextChatService:FindFirstChild("RBXGeneral", true) or TextChatService:FindFirstChildWhichIsA("TextChannel", true)
+            if textChannel then 
+                textChannel:SendAsync(message) 
+            end
+        else
+            local sayRemote = ReplicatedStorage:FindFirstChild("SayMessageRequest", true)
+            if sayRemote and sayRemote:IsA("RemoteEvent") then
+                sayRemote:FireServer(message, "All")
+            end
+        end
+    end)
+end)
+
+-- ========================================
+-- CORE & BYPASS UTILITIES
+-- ========================================
+
+local function getHumanoid()
+    local char = LocalPlayer.Character
+    if char then return char:FindFirstChildOfClass("Humanoid") end
+    return nil
+end
+
+local function resetAllHitboxes()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = p.Character.HumanoidRootPart
+            hrp.Size = Vector3.new(2, 2, 1)
+            hrp.Transparency = 1
+            hrp.Material = Enum.Material.Plastic
+            hrp.Color = Color3.fromRGB(163, 162, 165)
+        end
+    end
+end
+
+local function getCatalogRemote()
+    local e = ReplicatedStorage:FindFirstChild("Events")
+    if e then
+        local r = e:FindFirstChild("CatalogGuiRemote")
+        if r then return r end
+    end
+    local r = ReplicatedStorage:FindFirstChild("CatalogGuiRemote")
+    if r then return r end
+    for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
+        if d.Name == "CatalogGuiRemote" and (d:IsA("RemoteFunction") or d:IsA("RemoteEvent")) then
+            return d
+        end
+    end
+end
+
+local function rgbToTable(c)
+    if typeof(c) ~= "Color3" then return {r = 255, g = 255, b = 255, IsRGBTable = true} end
+    return {r = c.R * 255, g = c.G * 255, b = c.B * 255, IsRGBTable = true}
+end
+
+local function descriptionToDictionary(d)
+    local p = {
+        HatAccessory = d.HatAccessory or "", HairAccessory = d.HairAccessory or "", FaceAccessory = d.FaceAccessory or "",
+        BackAccessory = d.BackAccessory or "", FrontAccessory = d.FrontAccessory or "", NeckAccessory = d.NeckAccessory or "",
+        ShouldersAccessory = d.ShouldersAccessory or "", WaistAccessory = d.WaistAccessory or "", Face = d.Face or 0,
+        Head = d.Head or 0, Torso = d.Torso or 0, LeftArm = d.LeftArm or 0, RightArm = d.RightArm or 0,
+        LeftLeg = d.LeftLeg or 0, RightLeg = d.RightLeg or 0, Shirt = d.Shirt or 0, Pants = d.Pants or 0,
+        GraphicTShirt = d.GraphicTShirt or 0, HeadColor = rgbToTable(d.HeadColor), TorsoColor = rgbToTable(d.TorsoColor),
+        LeftArmColor = rgbToTable(d.LeftArmColor), RightArmColor = rgbToTable(d.RightArmColor), LeftLegColor = rgbToTable(d.LeftLegColor),
+        RightLegColor = rgbToTable(d.RightLegColor), HeightScale = d.HeightScale or 1, WidthScale = d.WidthScale or 1,
+        DepthScale = d.DepthScale or 1, HeadScale = d.HeadScale or 1, BodyTypeScale = d.BodyTypeScale or 0,
+        ProportionScale = d.ProportionScale or 0, ClimbAnimation = d.ClimbAnimation or 0, FallAnimation = d.FallAnimation or 0,
+        IdleAnimation = d.IdleAnimation or 0, JumpAnimation = d.JumpAnimation or 0, MoodAnimation = d.MoodAnimation or 0,
+        RunAnimation = d.RunAnimation or 0, SwimAnimation = d.SwimAnimation or 0, WalkAnimation = d.WalkAnimation or 0,
+        MakeupItems = {}, AccessoryRefinements = {}, LayeredAccessories = {}, StaticFacialAnimation = false,
+    }
+    pcall(function()
+        local a = d:GetAccessories(true)
+        if type(a) ~= "table" then return end
+        local o = {}
+        for _, x in ipairs(a) do
+            if type(x) == "table" and x.AssetId then
+                o[#o + 1] = {AssetId = x.AssetId, AccessoryType = tostring(x.AccessoryType or ""), Order = x.Order, Puffiness = x.Puffiness}
+            end
+        end
+        p.LayeredAccessories = o
+    end)
+    return p
+end
+
+local function getPlrDescription(plr)
+    if not plr then return end
+    local h = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+    if h then
+        local ok, live = pcall(function() return h:GetAppliedDescription() end)
+        if ok and live and live:IsA("HumanoidDescription") then return live, h.RigType end
+    end
+    local ok, d = pcall(function() return Players:GetHumanoidDescriptionFromUserId(plr.UserId) end)
+    if ok and d and d:IsA("HumanoidDescription") then return d, Enum.HumanoidRigType.R15 end
+end
+
+local function stealOutfit(plr)
+    if not plr then return end
+    local live, lrig = getPlrDescription(plr)
+    if not live then return end
+    local rem = getCatalogRemote()
+    if not rem then return end
+    local p = {Action = "CreateAndWearHumanoidDescription", Properties = descriptionToDictionary(live), RigType = lrig or Enum.HumanoidRigType.R15}
+    pcall(function()
+        if rem:IsA("RemoteFunction") then rem:InvokeServer(p) else rem:FireServer(p) end
+    end)
+end
+
+-- ========================================
+-- DRAWING FOV RINGS CREATION
+-- ========================================
+
+local RivalsFOVring = Drawing.new("Circle")
+RivalsFOVring.Visible = false
+RivalsFOVring.Thickness = 1.5
+RivalsFOVring.Color = Color3.fromRGB(255, 255, 255)
+RivalsFOVring.Filled = false
+RivalsFOVring.Radius = rivalsFovRadius
+RivalsFOVring.Position = Cam.ViewportSize / 2
+
+local MM2FOVring = Drawing.new("Circle")
+MM2FOVring.Visible = false
+MM2FOVring.Thickness = 1.5
+MM2FOVring.Color = Color3.fromRGB(255, 255, 255)
+MM2FOVring.Filled = false
+MM2FOVring.Radius = mm2FovRadius
+MM2FOVring.Position = Cam.ViewportSize / 2
+
+-- ========================================
+-- RIVAIS LEGIT LOGIC FUNCTIONS
+-- ========================================
+
+local function encontrarParteValida(char, membroDesejado)
+    local nomesPossiveis = MapeamentoMembros[membroDesejado]
+    if not nomesPossiveis then return nil end
+    for _, nome in ipairs(nomesPossiveis) do
+        local parte = char:FindFirstChild(nome)
+        if parte and parte:IsA("BasePart") then return parte end
+    end
+    return char:FindFirstChild("Head") or char:FindFirstChildWhichIsA("BasePart")
+end
+
+local function checarAlvoValidoRivals(modelo)
+    if modelo and modelo.Parent then
+        local humanoid = modelo:FindFirstChildOfClass("Humanoid")
+        local part = encontrarParteValida(modelo, ParteAlvo)
+        if part and humanoid and humanoid.Health > 0 then return true end
+    end
+    return false
+end
+
+local function encontrarInimigosRivals(pasta, lista)
+    for _, v in ipairs(pasta:GetChildren()) do
+        if v:IsA("Model") and v ~= LocalPlayer.Character and v:FindFirstChildOfClass("Humanoid") then
+            local plr = Players:GetPlayerFromCharacter(v)
+            if plr and plr.Team ~= LocalPlayer.Team then
+                table.insert(lista, v)
+            end
+        elseif v:IsA("Folder") or v:IsA("Model") then
+            encontrarInimigosRivals(v, lista)
+        end
+    end
+end
+
+local function getClosestRivalsTargetInFOV()
+local nearest = nil
+local last = math.huge
+local center = Cam.ViewportSize / 2
+local potenciaisAlvos = {}
+encontrarInimigosRivals(workspace, potenciaisAlvos)
+for _, obj in ipairs(potenciaisAlvos) do
+local humanoid = obj:FindFirstChildOfClass("Humanoid")
+local part = encontrarParteValida(obj, ParteAlvo)
+if humanoid and part and humanoid.Health > 0 then
+local pos, onScreen = Cam:WorldToViewportPoint(part.Position)
+if onScreen then
+local distance = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+if distance < last and distance <= rivalsFovRadius then
+nearest = obj
+last = distance
+end
+end
+end
+end
+return nearest
+end
+local function gerenciarHighlights()
+for _, jogador in pairs(Players:GetPlayers()) do
+if jogador ~= LocalPlayer and jogador.Character then
+local char = jogador.Character
+local hl = char:FindFirstChildOfClass("Highlight")
+if HighlightsAtivado then
+if not hl then
+hl = Instance.new("Highlight")
+hl.Parent = char
+end
+hl.FillTransparency = 0.5
+hl.OutlineTransparency = 0
+if jogador.Team == LocalPlayer.Team then
+hl.FillColor = PaletaCores[IndiceCorAliado]
+hl.OutlineColor = PaletaCores[IndiceCorAliado]
+else
+hl.FillColor = PaletaCores[IndiceCorInimigo]
+hl.OutlineColor = PaletaCores[IndiceCorInimigo]
+end
+else
+if hl then hl:Destroy() end
+end
+end
+end
+end
+-- ========================================
+-- MM2 MODULE FUNCTIONS
+-- ========================================
+local function obterCorDaFuncaoMM2(player)
+local char = player.Character
+if not char then return CoresMM2.Innocent end
+for _, item in ipairs(char:GetChildren()) do
+if item:IsA("Tool") then
+local nome = item.Name:lower()
+if nome:find("knife") or nome:find("faca") or item:FindFirstChild("KnifeScript") then return CoresMM2.Murder end
+if nome:find("gun") or nome:find("arma") or nome:find("revolver") or item:FindFirstChild("GunScript") then return CoresMM2.Sheriff end
+end
+end
+local bp = player:FindFirstChild("Backpack")
+if bp then
+for _, item in ipairs(bp:GetChildren()) do
+local nome = item.Name:lower()
+if nome:find("knife") or item:FindFirstChild("KnifeScript") then return CoresMM2.Murder end
+if nome:find("gun") or item:FindFirstChild("GunScript") then return CoresMM2.Sheriff end
+end
+end
+local playerData = player:FindFirstChild("PlayerData") or player:FindFirstChild("temp")
+if playerData and playerData:FindFirstChild("Role") then
+local role = playerData.Role.Value:lower()
+if role == "murderer" or role == "murder" then return CoresMM2.Murder end
+if role == "sheriff" then return CoresMM2.Sheriff end
+end
+return CoresMM2.Innocent
+end
+local function gerenciarElementoMM2ESP(player, folder)
+if CacheMM2ESP[player] then return end
+local boxFrame = Instance.new("Frame")
+boxFrame.Name = player.Name .. "_MM2_ESP"
+boxFrame.BackgroundTransparency = 1
+boxFrame.BorderSizePixel = 0
+boxFrame.Visible = false
+boxFrame.Parent = folder
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 2
+stroke.Color = CoresMM2.Innocent
+stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+stroke.Parent = boxFrame
+CacheMM2ESP[player] = {Box = boxFrame, Stroke = stroke}
+end
+local function checarAlvoValidoMM2(modelo)
+if modelo and modelo.Parent then
+local humanoid = modelo:FindFirstChildOfClass("Humanoid")
+local head = modelo:FindFirstChild("Head")
+if head and humanoid and humanoid.Health > 0 then return true end
+end
+return false
+end
+local function encontrarInimigosMM2(pasta, lista)
+for _, v in ipairs(pasta:GetChildren()) do
+if v:IsA("Model") and v ~= LocalPlayer.Character and v:FindFirstChildOfClass("Humanoid") then
+table.insert(lista, v)
+elseif v:IsA("Folder") or v:IsA("Model") then
+encontrarInimigosMM2(v, lista)
+end
+end
+end
+local function getClosestMM2TargetInFOV()
+local nearest = nil
+local last = math.huge
+local center = Cam.ViewportSize / 2
+local potenciaisAlvos = {}
+encontrarInimigosMM2(workspace, potenciaisAlvos)
+for _, obj in ipairs(potenciaisAlvos) do
+local humanoid = obj:FindFirstChildOfClass("Humanoid")
+local head = obj:FindFirstChild("Head")
+if humanoid and head and humanoid.Health > 0 then
+local pos, onScreen = Cam:WorldToViewportPoint(head.Position)
+if onScreen then
+local distance = (Vector2.new(pos.X, pos.Y) - center).Magnitude
+if distance < last and distance <= mm2FovRadius then
+nearest = obj
+last = distance
+end
+end
+end
+end
+return nearest
+end
+-- ========================================
+-- GUI CREATION (TRANSPARENT MAIN)
+-- ========================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "FemboyCuteHub"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+local espFolder = Instance.new("Folder")
+espFolder.Name = "L_ESP_Boxes"
+espFolder.Parent = screenGui
+local mainFrame = Instance.new("ImageLabel")
+mainFrame.Size = UDim2.new(0, 550, 0, 350)
+mainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
+mainFrame.BackgroundTransparency = 1
+mainFrame.Image = "rbxassetid://85742663719729"
+mainFrame.ScaleType = Enum.ScaleType.Crop
+mainFrame.ImageTransparency = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 35)
+topBar.BackgroundTransparency = 1
+topBar.Parent = mainFrame
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -40, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.Text = "Femboy Cute Hub | Made by Soy_Haru Femboy"
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+titleLabel.TextSize = 13
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.BackgroundTransparency = 1
+titleLabel.Parent = topBar
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 140, 1, -35)
+sidebar.Position = UDim2.new(0, 0, 0, 35)
+sidebar.BackgroundTransparency = 1
+sidebar.Parent = mainFrame
+local sidebarLayout = Instance.new("UIListLayout")
+sidebarLayout.Padding = UDim.new(0, 4)
+sidebarLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+sidebarLayout.Parent = sidebar
+Instance.new("UIPadding", sidebar).PaddingTop = UDim.new(0, 8)
+local contentContainer = Instance.new("Frame")
+contentContainer.Size = UDim2.new(1, -140, 1, -35)
+contentContainer.Position = UDim2.new(0, 140, 0, 35)
+contentContainer.BackgroundTransparency = 1
+contentContainer.Parent = mainFrame
+local Pages = {}
+local function createPage(pageName)
+local scrollingFrame = Instance.new("ScrollingFrame")
+scrollingFrame.Size = UDim2.new(1, 0, 1, 0)
+scrollingFrame.BackgroundTransparency = 1
+scrollingFrame.ScrollBarThickness = 4
+scrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 0, 0)
+scrollingFrame.Visible = false
+scrollingFrame.Parent = contentContainer
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 8)
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Parent = scrollingFrame
+Instance.new("UIPadding", scrollingFrame).PaddingTop = UDim.new(0, 10)
+listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+scrollingFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
+end)
+Pages[pageName] = scrollingFrame
+return scrollingFrame
+end
+local firstTab = true
+local function createTab(name)
+local tabBtn = Instance.new("TextButton")
+tabBtn.Size = UDim2.new(0.9, 0, 0, 32)
+tabBtn.BackgroundTransparency = 0.8
+tabBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+tabBtn.Font = Enum.Font.GothamMedium
+tabBtn.Text = name
+tabBtn.TextSize = 12
+tabBtn.TextColor3 = firstTab and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(70, 70, 70)
+tabBtn.Parent = sidebar
+Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 6)
+local page = createPage(name)
+if firstTab then page.Visible = true firstTab = false end
+tabBtn.MouseButton1Click:Connect(function()
+for _, p in pairs(Pages) do p.Visible = false end
+for _, b in ipairs(sidebar:GetChildren()) do if b:IsA("TextButton") then b.TextColor3 = Color3.fromRGB(70, 70, 70) end end
+page.Visible = true
+tabBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+end)
+return page
+end
+local function createSection(parentPage, sectionTitle)
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(0.92, 0, 0, 25)
+label.BackgroundTransparency = 1
+label.Text = sectionTitle
+label.Font = Enum.Font.GothamBold
+label.TextColor3 = Color3.fromRGB(0, 0, 0)
+label.TextSize = 13
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.Parent = parentPage
+end
+local function createToggle(parentPage, text, defaultState, callback)
+local state = defaultState
+local toggleFrame = Instance.new("Frame")
+toggleFrame.Size = UDim2.new(0.92, 0, 0, 40)
+toggleFrame.BackgroundTransparency = 0.85
+toggleFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+toggleFrame.Parent = parentPage
+Instance.new("UICorner", toggleFrame).CornerRadius = UDim.new(0, 6)
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(0.7, 0, 1, 0)
+label.Position = UDim2.new(0, 12, 0, 0)
+label.BackgroundTransparency = 1
+label.Text = text
+label.Font = Enum.Font.GothamMedium
+label.TextColor3 = Color3.fromRGB(0, 0, 0)
+label.TextSize = 12
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.Parent = toggleFrame
+local switch = Instance.new("TextButton")
+switch.Size = UDim2.new(0, 38, 0, 20)
+switch.Position = UDim2.new(1, -50, 0.5, -10)
+switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(180, 180, 180)
+switch.Text = ""
+switch.Parent = toggleFrame
+Instance.new("UICorner", switch).CornerRadius = UDim.new(0, 10)
+local circle = Instance.new("Frame")
+circle.Size = UDim2.new(0, 16, 0, 16)
+circle.Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
+circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+circle.Parent = switch
+Instance.new("UICorner", circle).CornerRadius = UDim.new(0, 8)
+switch.MouseButton1Click:Connect(function()
+state = not state
+switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(180, 180, 180)
+circle:TweenPosition(state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8), "Out", "Quart", 0.2, true)
+callback(state)
+end)
+return switch
+end
+local function createTextBox(parentPage, placeholder, defaultText, callback)
+local boxFrame = Instance.new("Frame")
+boxFrame.Size = UDim2.new(0.92, 0, 0, 40)
+boxFrame.BackgroundTransparency = 0.85
+boxFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+boxFrame.Parent = parentPage
+Instance.new("UICorner", boxFrame).CornerRadius = UDim.new(0, 6)
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(0.5, 0, 1, 0)
+label.Position = UDim2.new(0, 12, 0, 0)
+label.BackgroundTransparency = 1
+label.Text = placeholder
+label.Font = Enum.Font.GothamMedium
+label.TextColor3 = Color3.fromRGB(0, 0, 0)
+label.TextSize = 12
+label.TextXAlignment = Enum.TextXAlignment.Left
+label.Parent = boxFrame
+local box = Instance.new("TextBox")
+box.Size = UDim2.new(0, 100, 0, 26)
+box.Position = UDim2.new(1, -112, 0.5, -13)
+box.BackgroundTransparency = 0.5
+box.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+box.Text = defaultText
+box.Font = Enum.Font.GothamMedium
+box.TextColor3 = Color3.fromRGB(0, 120, 0)
+box.TextSize = 12
+box.Parent = boxFrame
+Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
+box:GetPropertyChangedSignal("Text"):Connect(function() callback(box.Text) end)
+return box
+end
+local function createButton(parentPage, text, callback)
+local btnFrame = Instance.new("Frame")
+btnFrame.Size = UDim2.new(0.92, 0, 0, 40)
+btnFrame.BackgroundTransparency = 0.85
+btnFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+btnFrame.Parent = parentPage
+Instance.new("UICorner", btnFrame).CornerRadius = UDim.new(0, 6)
+local btn = Instance.new("TextButton")
+btn.Size = UDim2.new(1, 0, 1, 0)
+btn.BackgroundTransparency = 1
+btn.Text = text
+btn.Font = Enum.Font.GothamMedium
+btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+btn.TextSize = 12
+btn.Parent = btnFrame
+btn.MouseButton1Click:Connect(callback)
+return btn
+end
+-- ========================================
+-- INITIALIZING TABS & COMPONENTS
+-- ========================================
+local mainPage = createTab("Main / Movement")
+local combatPage = createTab("Combat / Hitbox")
+local rivalsPage = createTab("Rivais Legit")
+local mm2Page = createTab("MM2 Vision")
+local stealerPage = createTab("Catalog Stealer")
+local settingsPage = createTab("Settings")
+local creditsPage = createTab("Credits")
+-- Main Page Content
+createSection(mainPage, "Movement Settings")
+createToggle(mainPage, "Enable Speed Hack", false, function(toggled)
+isSpeedBoostActive = toggled
+if not toggled then local hum = getHumanoid() if hum then hum.WalkSpeed = 16 end end
+end)
+createTextBox(mainPage, "Set Custom Speed Value", "100", function(text)
+local val = tonumber(text) if val then currentSpeed = val end
+end)
+createToggle(mainPage, "Infinite Jump", false, function(toggled) isInfiniteJumpActive = toggled end)
+createToggle(mainPage, "Noclip Mode", false, function(toggled) isNoclipActive = toggled end)
+-- Combat Page Content
+createSection(combatPage, "Player Modification")
+createToggle(combatPage, "Expand Enemy Hitboxes", false, function(toggled)
+isExpanded = toggled if not toggled then resetAllHitboxes() end
+end)
+createTextBox(combatPage, "Set Hitbox Size", "12", function(text)
+local num = tonumber(text) if num then currentHitboxSize = Vector3.new(num, num, num) end
+end)
+createTextBox(combatPage, "Hitbox RGB Color", "255, 0, 0", function(text)
+local r, g, b = text:match("(%d+)%s*,%s*(%d+)%s*,%s*(%d+)")
+if r and g and b then currentHitboxColor = Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b)) end
+end)
+createTextBox(combatPage, "Hitbox Material/Texture", "Plastic", function(text)
+local success, mat = pcall(function() return Enum.Material[text] end)
+if success and mat then currentHitboxMaterial = mat end
+end)
+-- Rivais Legit Content
+createSection(rivalsPage, "Rivals Assist Engine")
+createToggle(rivalsPage, "Enable FOV Lock (Key: F)", false, function(toggled)
+MasterRivalsAimbot = toggled RivalsFOVring.Visible = toggled
+if not toggled then RivalsAimbotAtivado = false RivalsAlvoAtual = nil end
+end)
+createToggle(rivalsPage, "ESP Outline (Highlights)", false, function(toggled)
+HighlightsAtivado = toggled gerenciarHighlights()
+end)
+local targetPartBtn = createButton(rivalsPage, "AIM PART: HEAD", function()
+IndiceParteVisual = IndiceParteVisual + 1 if IndiceParteVisual > #ListaPartes then IndiceParteVisual = 1 end
+ParteAlvo = ListaPartes[IndiceParteVisual] targetPartBtn.Text = "AIM PART: " .. ParteAlvo:upper()
+end)
+local enemyColorBtn = createButton(rivalsPage, "ENEMY COLOR: VERMELHO", function()
+IndiceCorInimigo = IndiceCorInimigo + 1 if IndiceCorInimigo > #PaletaCores then IndiceCorInimigo = 1 end gerenciarHighlights()
+end)
+local allyColorBtn = createButton(rivalsPage, "ALLY COLOR: VERDE", function()
+IndiceCorAliado = IndiceCorAliado + 1 if IndiceCorAliado > #PaletaCores then IndiceCorAliado = 1 end gerenciarHighlights()
+end)
+createTextBox(rivalsPage, "FOV Radius Size", "150", function(text)
+local num = tonumber(text) if num then rivalsFovRadius = num RivalsFOVring.Radius = num end
+end)
