@@ -1,11 +1,13 @@
--- Femboy Cute Hub V11.0 (Twin FOV Aimbots + Credits Tab)
+-- Femboy Cute Hub V19.7 (AI Survivor Fixed Syntax & Gun Pathfinding Priority)
 -- Made by @Soy_Haru Femboy
--- Supported: sem título sem tag / Catalog Avatar Creator / Rivais / Murder Mystery 2
+-- Supported: sem título sem tag / Catalog Avatar Creator / Murder Mystery 2
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local PathfindingService = game:GetService("PathfindingService")
 
 local LocalPlayer = Players.LocalPlayer
 local Cam = workspace.CurrentCamera
@@ -25,51 +27,32 @@ local currentSpeed = 100
 local currentHitboxSize = Vector3.new(12, 12, 12)
 local currentHitboxColor = Color3.fromRGB(255, 0, 0)
 local currentHitboxMaterial = Enum.Material.Plastic
+local currentHitboxTransparency = 0.6 
 
 -- Catalog Stealer States
 local JogadorSelecionado = nil
 
--- Rivais Legit States & Rings
-local rivalsFovRadius = 150
-local MasterRivalsAimbot = false
-local RivalsAimbotAtivado = false
-local RivalsAlvoAtual = nil
-local HighlightsAtivado = false
-local IndiceParteVisual = 1
-local IndiceCorInimigo = 1
-local IndiceCorAliado = 2
-
-local ListaPartes = {"Head", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
-local ParteAlvo = ListaPartes[IndiceParteVisual]
-
-local PaletaCores = {
-    Color3.fromRGB(255, 0, 0),   -- Vermelho
-    Color3.fromRGB(0, 255, 0),   -- Verde
-    Color3.fromRGB(0, 100, 255), -- Azul
-    Color3.fromRGB(255, 255, 0), -- Amarelo
-    Color3.fromRGB(180, 0, 255)  -- Roxo
-}
-local MapeamentoMembros = {
-    ["Head"] = {"Head"},
-    ["Torso"] = {"HumanoidRootPart", "Torso", "UpperTorso"},
-    ["Left Arm"] = {"LeftArm", "LeftUpperArm", "LeftHand"},
-    ["Right Arm"] = {"RightArm", "RightUpperArm", "RightHand"},
-    ["Left Leg"] = {"LeftLeg", "LeftUpperLeg", "LeftFoot"},
-    ["Right Leg"] = {"RightLeg", "RightUpperLeg", "RightFoot"}
-}
-
--- MM2 Vision States & Rings
-local mm2FovRadius = 130
-local MasterMM2ESP = false
+-- MM2 Vision States
+local limiteAlcanceMM2 = 200
 local MasterMM2Aimbot = false
-local MM2AimbotAtivado = false
-local MM2AlvoAtual = nil
-local CacheMM2ESP = {}
+local HighlightsMM2Ativado = false
 local CoresMM2 = {
     Murder = Color3.fromRGB(255, 0, 0),
     Sheriff = Color3.fromRGB(0, 0, 255),
     Innocent = Color3.fromRGB(0, 255, 0)
 }
+
+-- MM2 Auto Play States
+local AutoPlayInocenteAtivado = false
+local AutoPlayMurderAtivado = false
+local ultimoCalculoRota = 0
+local ultimaExpansaoMurder = 0
+
+-- AFK & Anti-AFK States
+local AntiAFKAtivado = false
+local AFKModeAtivado = false
+local AFKPlatform = nil
+local PosicaoOriginal = nil
 
 -- Connection Storage for Clean Up
 local Connections = {}
@@ -96,7 +79,6 @@ local function resetAllHitboxes()
     end
 end
 
--- Catalog Stealer Remotes Bypass Logic
 local function getCatalogRemote()
     local e = ReplicatedStorage:FindFirstChild("Events")
     if e then
@@ -171,194 +153,190 @@ local function stealOutfit(plr)
 end
 
 -- ========================================
--- DRAWING FOV RINGS CREATION
+-- MM2 MODULE ADVANCED ENGINE
 -- ========================================
 
-local RivalsFOVring = Drawing.new("Circle")
-RivalsFOVring.Visible = false
-RivalsFOVring.Thickness = 1.5
-RivalsFOVring.Color = Color3.fromRGB(255, 255, 255)
-RivalsFOVring.Filled = false
-RivalsFOVring.Radius = rivalsFovRadius
-RivalsFOVring.Position = Cam.ViewportSize / 2
+local function obterCorDaFuncaoMM2(player)
+    local char = player.Character
+    if not char then return CoresMM2.Innocent end
 
-local MM2FOVring = Drawing.new("Circle")
-MM2FOVring.Visible = false
-MM2FOVring.Thickness = 1.5
-MM2FOVring.Color = Color3.fromRGB(255, 255, 255)
-MM2FOVring.Filled = false
-MM2FOVring.Radius = mm2FovRadius
-MM2FOVring.Position = Cam.ViewportSize / 2
-
--- ========================================
--- RIVAIS LEGIT LOGIC FUNCTIONS
--- ========================================
-
-local function encontrarParteValida(char, membroDesejado)
-    local nomesPossiveis = MapeamentoMembros[membroDesejado]
-    if not nomesPossiveis then return nil end
-    for _, nome in ipairs(nomesPossiveis) do
-        local parte = char:FindFirstChild(nome)
-        if parte and parte:IsA("BasePart") then return parte end
-    end
-    return char:FindFirstChild("Head") or char:FindFirstChildWhichIsA("BasePart")
-end
-
-local function checarAlvoValidoRivals(modelo)
-    if modelo and modelo.Parent then
-        local humanoid = modelo:FindFirstChildOfClass("Humanoid")
-        local part = encontrarParteValida(modelo, ParteAlvo)
-        if part and humanoid and humanoid.Health > 0 then return true end
-    end
-    return false
-end
-
-local function encontrarInimigosRivals(pasta, lista)
-    for _, v in ipairs(pasta:GetChildren()) do
-        if v:IsA("Model") and v ~= LocalPlayer.Character and v:FindFirstChildOfClass("Humanoid") then
-            local plr = Players:GetPlayerFromCharacter(v)
-            if plr and plr.Team ~= LocalPlayer.Team then
-                table.insert(lista, v)
-            end
-        elseif v:IsA("Folder") or v:IsA("Model") then
-            encontrarInimigosRivals(v, lista)
+    for _, item in ipairs(char:GetChildren()) do
+        if item:IsA("Tool") then
+            local nome = item.Name:lower()
+            if nome:find("knife") or nome:find("faca") or item:FindFirstChild("KnifeScript") then return CoresMM2.Murder end
+            if nome:find("gun") or nome:find("arma") or nome:find("revolver") or item:FindFirstChild("GunScript") then return CoresMM2.Sheriff end
         end
     end
+
+    local bp = player:FindFirstChild("Backpack")
+    if bp then
+        for _, item in ipairs(bp:GetChildren()) do
+            local nome = item.Name:lower()
+            if nome:find("knife") or item:FindFirstChild("KnifeScript") then return CoresMM2.Murder end
+            if nome:find("gun") or item:FindFirstChild("GunScript") then return CoresMM2.Sheriff end
+        end
+    end
+
+    local playerData = player:FindFirstChild("PlayerData") or player:FindFirstChild("temp")
+    if playerData and playerData:FindFirstChild("Role") then
+        local role = playerData.Role.Value:lower()
+        if role == "murderer" or role == "murder" then return CoresMM2.Murder end
+        if role == "sheriff" then return CoresMM2.Sheriff end
+    end
+    return CoresMM2.Innocent
 end
 
-local function getClosestRivalsTargetInFOV()
-    local nearest = nil
-    local last = math.huge
-    local center = Cam.ViewportSize / 2
-    
-    local potenciaisAlvos = {}
-    encontrarInimigosRivals(workspace, potenciaisAlvos)
-    
-    for _, obj in ipairs(potenciaisAlvos) do
-        local humanoid = obj:FindFirstChildOfClass("Humanoid")
-        local part = encontrarParteValida(obj, ParteAlvo)
-        
-        if humanoid and part and humanoid.Health > 0 then
-            local pos, onScreen = Cam:WorldToViewportPoint(part.Position)
-            if onScreen then
-                local distance = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-                if distance < last and distance <= rivalsFovRadius then
-                    nearest = obj
-                    last = distance
+local function encontrarMurderNoServidor()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and obterCorDaFuncaoMM2(p) == CoresMM2.Murder then
+            return p
+        end
+    end
+    return nil
+end
+
+local function localizarArmaDropada()
+    local g = workspace:FindFirstChild("GunDrop")
+    if g and g:IsA("Part") then return g end
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj.Name == "GunDrop" and obj:IsA("Part") then return obj end
+    end
+    return nil
+end
+
+local function obterMoedaMaisProxima()
+    local menorDistancia = math.huge
+    local melhorMoeda = nil
+    local meuChar = LocalPlayer.Character
+    if not meuChar or not meuChar:FindFirstChild("HumanoidRootPart") then return nil end
+    local mHrp = meuChar.HumanoidRootPart
+
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if (obj.Name == "Coin" or obj.Name == "CoinContainer" or obj.Name == "Gold") and obj:IsA("BasePart") then
+            local dist = (mHrp.Position - obj.Position).Magnitude
+            if dist < menorDistancia then
+                menorDistancia = dist
+                melhorMoeda = obj
+            end
+        end
+    end
+    return melhorMoeda
+end
+
+local function obterAlvoParaMurder()
+    local menorDistancia = math.huge
+    local melhorAlvoInocente = nil
+    local meuChar = LocalPlayer.Character
+    if not meuChar or not meuChar:FindFirstChild("HumanoidRootPart") then return nil end
+    local meuHrp = meuChar.HumanoidRootPart
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChildOfClass("Humanoid") then
+            if p.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+                if obterCorDaFuncaoMM2(p) == CoresMM2.Sheriff then
+                    return p.Character.HumanoidRootPart
                 end
             end
         end
     end
-    return nearest
-end
 
-local function gerenciarHighlights()
-    for _, jogador in pairs(Players:GetPlayers()) do
-        if jogador ~= LocalPlayer and jogador.Character then
-            local char = jogador.Character
-local hl = char:FindFirstChildOfClass("Highlight")
-if HighlightsAtivado then
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChildOfClass("Humanoid") then
+            if p.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+local dist = (meuHrp.Position - p.Character.HumanoidRootPart.Position).Magnitude
+if dist < menorDistancia then
+menorDistancia = dist
+melhorAlvoInocente = p.Character.HumanoidRootPart
+end
+end
+end
+end
+return melhorAlvoInocente
+end
+local function calcularRotaPathfinding(destinoPos)
+local agora = os.clock()
+if agora - ultimoCalculoRota < 0.25 then return end
+ultimoCalculoRota = agora
+task.spawn(function()
+local meuChar = LocalPlayer.Character
+local hum = meuChar and meuChar:FindFirstChildOfClass("Humanoid")
+local hrp = meuChar and meuChar:FindFirstChild("HumanoidRootPart")
+if not hum or not hrp then return end
+local path = PathfindingService:CreatePath({AgentRadius = 2.0, AgentHeight = 5.0, AgentCanJump = true})
+path:ComputeAsync(hrp.Position, destinoPos)
+if path.Status == Enum.PathStatus.Success then
+local waypoints = path:GetWaypoints()
+if waypoints and #waypoints > 1 then
+hum:MoveTo(waypoints.Position)
+if waypoints.Action == Enum.PathfindingWaypointAction.Jump then
+hum.Jump = true
+end
+end
+else
+hum:MoveTo(destinoPos)
+end
+end)
+end
+local function gerenciarHighlightsMM2()
+for _, jogador in pairs(Players:GetPlayers()) do
+if jogador ~= LocalPlayer and jogador.Character then
+local char = jogador.Character
+local hl = char:FindFirstChild("MM2_Highlight")
+if HighlightsMM2Ativado then
 if not hl then
 hl = Instance.new("Highlight")
+hl.Name = "MM2_Highlight"
 hl.Parent = char
 end
 hl.FillTransparency = 0.5
 hl.OutlineTransparency = 0
-if jogador.Team == LocalPlayer.Team then
-hl.FillColor = PaletaCores[IndiceCorAliado]
-hl.OutlineColor = PaletaCores[IndiceCorAliado]
-else
-hl.FillColor = PaletaCores[IndiceCorInimigo]
-hl.OutlineColor = PaletaCores[IndiceCorInimigo]
-end
+local corMM2Role = obterCorDaFuncaoMM2(jogador)
+hl.FillColor = corMM2Role
+hl.OutlineColor = corMM2Role
 else
 if hl then hl:Destroy() end
 end
 end
 end
 end
--- ========================================
--- MM2 MODULE FUNCTIONS (NATIVE BOX ESP & ADVANCED FOV AIMBOT)
--- ========================================
-local function obterCorDaFuncaoMM2(player)
-local char = player.Character
-if not char then return CoresMM2.Innocent end
-for _, item in ipairs(char:GetChildren()) do
-if item:IsA("Tool") then
-local nome = item.Name:lower()
-if nome:find("knife") or nome:find("faca") or item:FindFirstChild("KnifeScript") then return CoresMM2.Murder end
-if nome:find("gun") or nome:find("arma") or nome:find("revolver") or item:FindFirstChild("GunScript") then return CoresMM2.Sheriff end
-end
-end
-local bp = player:FindFirstChild("Backpack")
-if bp then
-for _, item in ipairs(bp:GetChildren()) do
-local nome = item.Name:lower()
-if nome:find("knife") or item:FindFirstChild("KnifeScript") then return CoresMM2.Murder end
-if nome:find("gun") or item:FindFirstChild("GunScript") then return CoresMM2.Sheriff end
-end
-end
-local playerData = player:FindFirstChild("PlayerData") or player:FindFirstChild("temp")
-if playerData and playerData:FindFirstChild("Role") then
-local role = playerData.Role.Value:lower()
-if role == "murderer" or role == "murder" then return CoresMM2.Murder end
-if role == "sheriff" then return CoresMM2.Sheriff end
-end
-return CoresMM2.Innocent
-end
-local function gerenciarElementoMM2ESP(player, folder)
-if CacheMM2ESP[player] then return end
-local boxFrame = Instance.new("Frame")
-boxFrame.Name = player.Name .. "_MM2_ESP"
-boxFrame.BackgroundTransparency = 1
-boxFrame.BorderSizePixel = 0
-boxFrame.Visible = false
-boxFrame.Parent = folder
-local stroke = Instance.new("UIStroke")
-stroke.Thickness = 2
-stroke.Color = CoresMM2.Innocent
-stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-stroke.Parent = boxFrame
-CacheMM2ESP[player] = {Box = boxFrame, Stroke = stroke}
-end
-local function checarAlvoValidoMM2(modelo)
-if modelo and modelo.Parent then
-local humanoid = modelo:FindFirstChildOfClass("Humanoid")
-local head = modelo:FindFirstChild("Head")
-if head and humanoid and humanoid.Health > 0 then return true end
-end
-return false
-end
-local function encontrarInimigosMM2(pasta, lista)
-for _, v in ipairs(pasta:GetChildren()) do
-if v:IsA("Model") and v ~= LocalPlayer.Character and v:FindFirstChildOfClass("Humanoid") then
-table.insert(lista, v)
-elseif v:IsA("Folder") or v:IsA("Model") then
-encontrarInimigosMM2(v, lista)
+local function obterAlvoAimbotMM2()
+local meuCargo = obterCorDaFuncaoMM2(LocalPlayer)
+local menorDistancia = math.huge
+local melhorAlvo = nil
+local meuChar = LocalPlayer.Character
+if not meuChar or not meuChar:FindFirstChild("HumanoidRootPart") then return nil end
+local meuHrp = meuChar.HumanoidRootPart
+for _, jogador in pairs(Players:GetPlayers()) do
+if jogador ~= LocalPlayer and jogador.Character and jogador.Character:FindFirstChild("Humanoid") and jogador.Character:FindFirstChildOfClass("Humanoid") and jogador.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+local cargoInimigo = obterCorDaFuncaoMM2(jogador)
+if meuCargo ~= CoresMM2.Murder then
+if cargoInimigo == CoresMM2.Murder then
+local pHead = jogador.Character.Head
+local _, visivel = Cam:WorldToViewportPoint(pHead.Position)
+if visivel then
+local dist = (meuHrp.Position - pHead.Position).Magnitude
+if dist <= limiteAlcanceMM2 and dist < menorDistancia then
+menorDistancia = dist
+melhorAlvo = pHead
 end
 end
 end
-local function getClosestMM2TargetInFOV()
-local nearest = nil
-local last = math.huge
-local center = Cam.ViewportSize / 2
-local potenciaisAlvos = {}
-encontrarInimigosMM2(workspace, potenciaisAlvos)
-for _, obj in ipairs(potenciaisAlvos) do
-local humanoid = obj:FindFirstChildOfClass("Humanoid")
-local head = obj:FindFirstChild("Head")
-if humanoid and head and humanoid.Health > 0 then
-local pos, onScreen = Cam:WorldToViewportPoint(head.Position)
-if onScreen then
-local distance = (Vector2.new(pos.X, pos.Y) - center).Magnitude
-if distance < last and distance <= mm2FovRadius then
-nearest = obj
-last = distance
+else
+local pHead = jogador.Character.Head
+local _, visivel = Cam:WorldToViewportPoint(pHead.Position)
+if visivel then
+local dist = (meuHrp.Position - pHead.Position).Magnitude
+if cargoInimigo == CoresMM2.Sheriff then
+return pHead
+elseif dist <= limiteAlcanceMM2 and dist < menorDistancia then
+menorDistancia = dist
+melhorAlvo = pHead
 end
 end
 end
 end
-return nearest
+end
+return melhorAlvo
 end
 -- ========================================
 -- GUI CREATION (TRANSPARENT MAIN)
@@ -367,9 +345,6 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "FemboyCuteHub"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-local espFolder = Instance.new("Folder")
-espFolder.Name = "L_ESP_Boxes"
-espFolder.Parent = screenGui
 local mainFrame = Instance.new("ImageLabel")
 mainFrame.Size = UDim2.new(0, 550, 0, 350)
 mainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
@@ -532,7 +507,9 @@ box.TextColor3 = Color3.fromRGB(0, 120, 0)
 box.TextSize = 12
 box.Parent = boxFrame
 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
-box:GetPropertyChangedSignal("Text"):Connect(function() callback(box.Text) end)
+box.FocusLost:Connect(function(enterPressed)
+callback(box.Text)
+end)
 return box
 end
 local function createButton(parentPage, text, callback)
@@ -558,8 +535,8 @@ end
 -- ========================================
 local mainPage = createTab("Main / Movement")
 local combatPage = createTab("Combat / Hitbox")
-local rivalsPage = createTab("Rivais Legit")
 local mm2Page = createTab("MM2 Vision")
+local autoPlayPage = createTab("Auto Play Bot")
 local stealerPage = createTab("Catalog Stealer")
 local settingsPage = createTab("Settings")
 local creditsPage = createTab("Credits")
@@ -590,49 +567,33 @@ createTextBox(combatPage, "Hitbox Material/Texture", "Plastic", function(text)
 local success, mat = pcall(function() return Enum.Material[text] end)
 if success and mat then currentHitboxMaterial = mat end
 end)
--- Rivais Legit Content
-createSection(rivalsPage, "Rivals Assist Engine")
-createToggle(rivalsPage, "Enable FOV Lock (Key: F)", false, function(toggled)
-MasterRivalsAimbot = toggled
-RivalsFOVring.Visible = toggled
-if not toggled then
-RivalsAimbotAtivado = false
-RivalsAlvoAtual = nil
-end
-end)
-createToggle(rivalsPage, "ESP Outline (Highlights)", false, function(toggled)
-HighlightsAtivado = toggled gerenciarHighlights()
-end)
-local targetPartBtn = createButton(rivalsPage, "AIM PART: HEAD", function()
-IndiceParteVisual = IndiceParteVisual + 1 if IndiceParteVisual > #ListaPartes then IndiceParteVisual = 1 end
-ParteAlvo = ListaPartes[IndiceParteVisual]
-targetPartBtn.Text = "AIM PART: " .. ParteAlvo:upper()
-end)
-local enemyColorBtn = createButton(rivalsPage, "ENEMY COLOR: VERMELHO", function()
-IndiceCorInimigo = IndiceCorInimigo + 1 if IndiceCorInimigo > #PaletaCores then IndiceCorInimigo = 1 end
-gerenciarHighlights()
-end)
-local allyColorBtn = createButton(rivalsPage, "ALLY COLOR: VERDE", function()
-IndiceCorAliado = IndiceCorAliado + 1 if IndiceCorAliado > #PaletaCores then IndiceCorAliado = 1 end
-gerenciarHighlights()
-end)
-createTextBox(rivalsPage, "FOV Radius Size", "150", function(text)
-local num = tonumber(text) if num then rivalsFovRadius = num RivalsFOVring.Radius = num end
+createTextBox(combatPage, "Hitbox Transparency (0 to 1)", "0.6", function(text)
+local num = tonumber(text) if num then currentHitboxTransparency = math.clamp(num, 0, 1) end
 end)
 -- MM2 Vision Content
 createSection(mm2Page, "Murder Mystery 2 Tracking")
-createToggle(mm2Page, "Enable FOV Lock (Key: F)", false, function(toggled)
+createToggle(mm2Page, "Enable Camera Aimbot Lock", false, function(toggled)
 MasterMM2Aimbot = toggled
-MM2FOVring.Visible = toggled
+end)
+createToggle(mm2Page, "ESP Outline (Highlights)", false, function(toggled)
+HighlightsMM2Ativado = toggled gerenciarHighlightsMM2()
+end)
+createTextBox(mm2Page, "Max Distance (Studs)", "200", function(text)
+local num = tonumber(text) if num then limiteAlcanceMM2 = num end
+end)
+-- Auto Play Bot Content
+createSection(autoPlayPage, "MM2 Role Automation")
+createToggle(autoPlayPage, "AI Survivor Bot (Innocent/Sheriff)", false, function(toggled)
+AutoPlayInocenteAtivado = toggled
 if not toggled then
-MM2AimbotAtivado = false
-MM2AlvoAtual = nil
+resetAllHitboxes()
+local hum = getHumanoid() if hum then hum:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position) end
 end
 end)
-createToggle(mm2Page, "Enable Native Box ESP", false, function(toggled)
-MasterMM2ESP = toggled
+createToggle(autoPlayPage, "AI Murderer Bot (Hunting Engine)", false, function(toggled)
+AutoPlayMurderAtivado = toggled
 if not toggled then
-for _, dados in pairs(CacheMM2ESP) do if dados and dados.Box then dados.Box.Visible = false end end
+local hum = getHumanoid() if hum then hum:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position) end
 end
 end)
 -- Catalog Stealer Content
@@ -671,36 +632,60 @@ updatePlayerList()
 -- Settings Page Content
 createSection(settingsPage, "Key Bindings Configuration")
 createTextBox(settingsPage, "UI Toggle Key", "F1", function(text)
-local success, key = pcall(function() return Enum.KeyCode[text] end) if success and key then ToggleKey = key end
+local success, key = pcall(function() return Enum.KeyCode[text] end)
+if success and key then ToggleKey = key end
 end)
 createTextBox(settingsPage, "Uninstall Script Key", "Delete", function(text)
-local success, key = pcall(function() return Enum.KeyCode[text] end) if success and key then DestroyKey = key end
+local success, key = pcall(function() return Enum.KeyCode[text] end)
+if success and key then DestroyKey = key end
 end)
--- Credits Page Content (Requested links with Clipboard Auto-Copy)
+createSection(settingsPage, "Automation Tools")
+createToggle(settingsPage, "Enable Anti-AFK (Bypass Disconnect)", false, function(toggled)
+AntiAFKAtivado = toggled
+end)
+createToggle(settingsPage, "Enable AFK Safe Mode", false, function(toggled)
+AFKModeAtivado = toggled
+local char = LocalPlayer.Character
+local hrp = char and char:FindFirstChild("HumanoidRootPart")
+if toggled then
+if hrp then
+PosicaoOriginal = hrp.CFrame
+AFKPlatform = Instance.new("Part")
+AFKPlatform.Size = Vector3.new(20, 2, 20)
+AFKPlatform.Position = Vector3.new(hrp.Position.X, 1500, hrp.Position.Z)
+AFKPlatform.Anchored = true
+AFKPlatform.Material = Enum.Material.Glass
+AFKPlatform.Transparency = 0.5
+AFKPlatform.CanCollide = true
+AFKPlatform.Parent = workspace
+task.wait(0.1)
+hrp.CFrame = CFrame.new(AFKPlatform.Position + Vector3.new(0, 4, 0))
+end
+else
+if AFKPlatform then AFKPlatform:Destroy() AFKPlatform = nil end
+if PosicaoOriginal and hrp then
+hrp.CFrame = PosicaoOriginal
+PosicaoOriginal = nil
+end
+end
+end)
+-- Credits Page Content
 createSection(creditsPage, "Developer Information")
 local devLabel = Instance.new("TextLabel")
 devLabel.Size = UDim2.new(0.92, 0, 0, 30)
 devLabel.BackgroundTransparency = 1
 devLabel.Text = "Owner / Main Dev: Soy_Haru"
-devLabel.Text = "Friend / Main Friend: Roxy"
 devLabel.Font = Enum.Font.GothamBold
-devLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
-devLabel.TextSize = 13
-devLabel.TextXAlignment = Enum.TextXAlignment.Left
-devLabel.Parent = creditsPage
+devLabel.TextColor3 = Color3.fromRGB(0, 0, 0) devLabel.TextSize = 13 devLabel.TextXAlignment = Enum.TextXAlignment.Left devLabel.Parent = creditsPage
 local ytBtn = createButton(creditsPage, "COPY YOUTUBE CHANNEL", function()
-setclipboard("https://www.youtube.com/@Soy_Haru123")
-creditsPage:FindFirstChild("COPY YOUTUBE CHANNEL" == nil and "Frame" or "").TextButton.Text = "COPIED YOUTUBE LINK!"
-task.delay(2, function()
-pcall(function() creditsPage:FindFirstChild("COPY YOUTUBE CHANNEL" == nil and "Frame" or "").TextButton.Text = "COPY YOUTUBE CHANNEL" end)
-end)
+setclipboard("youtube.com")
+creditsPage:FindFirstChild("COPY YOUTUBE CHANNEL").Frame.TextButton.Text = "COPIED YOUTUBE LINK!"
+task.delay(2, function() pcall(function() creditsPage:FindFirstChild("COPY YOUTUBE CHANNEL").Frame.TextButton.Text = "COPY YOUTUBE CHANNEL" end) end)
 end)
 local dcBtn = createButton(creditsPage, "COPY FRIEND'S DISCORD SERVER", function()
-setclipboard("https://discord.gg/UxFzRkSSPe")
-creditsPage:FindFirstChild("COPY FRIEND'S DISCORD SERVER" == nil and "Frame" or "").TextButton.Text = "COPIED DISCORD LINK!"
-task.delay(2, function()
-pcall(function() creditsPage:FindFirstChild("COPY FRIEND'S DISCORD SERVER" == nil and "Frame" or "").TextButton.Text = "COPY FRIEND'S DISCORD SERVER" end)
-end)
+setclipboard("discord.gg")
+creditsPage:FindFirstChild("COPY FRIEND'S DISCORD SERVER").Frame.TextButton.Text = "COPIED DISCORD LINK!"
+task.delay(2, function() pcall(function() creditsPage:FindFirstChild("COPY FRIEND'S DISCORD SERVER").Frame.TextButton.Text = "COPY FRIEND'S DISCORD SERVER" end) end)
 end)
 -- ========================================
 -- SYSTEM CORE ENGINE LOOPS
@@ -709,76 +694,110 @@ Connections.RenderStepped = RunService.RenderStepped:Connect(function()
 if isSpeedBoostActive then
 local hum = getHumanoid() if hum and hum.WalkSpeed ~= currentSpeed then hum.WalkSpeed = currentSpeed end
 end
-if isExpanded then
+if isExpanded and not AutoPlayInocenteAtivado then
 for _, p in pairs(Players:GetPlayers()) do
 if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
 local hrp = p.Character.HumanoidRootPart
-hrp.Size = currentHitboxSize hrp.Color = currentHitboxColor hrp.Material = currentHitboxMaterial hrp.Transparency = 0.6 hrp.CanCollide = false
+hrp.Size = currentHitboxSize
+hrp.Color = currentHitboxColor
+hrp.Material = currentHitboxMaterial
+hrp.Transparency = currentHitboxTransparency
+hrp.CanCollide = false
 end
 end
 end
--- Rivais Advanced FOV Aimbot Logic
-if MasterRivalsAimbot then
-RivalsFOVring.Position = Cam.ViewportSize / 2
-if RivalsAimbotAtivado then
-if RivalsAlvoAtual and checarAlvoValidoRivals(RivalsAlvoAtual) then
-local lockPart = encontrarParteValida(RivalsAlvoAtual, ParteAlvo)
-if lockPart then Cam.CFrame = CFrame.lookAt(Cam.CFrame.Position, lockPart.Position) end
+if AFKModeAtivado then
+local hum = getHumanoid()
+if hum and hum.FloorMaterial ~= Enum.Material.Air then hum.Jump = true end
+end
+if MasterMM2Aimbot and not AutoPlayInocenteAtivado and not AutoPlayMurderAtivado then
+local mm2Alvo = obterAlvoAimbotMM2()
+if mm2Alvo then
+Cam.CFrame = CFrame.new(Cam.CFrame.Position, mm2Alvo.Position)
+end
+end
+-- HIGH-PERFORMANCE LOW-LAG AI BOT LOOPS
+local meuChar = LocalPlayer.Character
+local meuHum = meuChar and meuChar:FindFirstChildOfClass("Humanoid")
+local meuHrp = meuChar and meuChar:FindFirstChild("HumanoidRootPart")
+if meuHrp and meuHum then
+-- ROUTINE 1: FIXED AI SURVIVOR BOT WITH ABSOLUTE GUN DROP PRIORITY
+if AutoPlayInocenteAtivado then
+local armaDropada = localizarArmaDropada()
+local murderPlr = encontrarMurderNoServidor()
+if murderPlr and murderPlr.Character and murderPlr.Character:FindFirstChild("HumanoidRootPart") then
+local mHrp = murderPlr.Character.HumanoidRootPart
+local mHead = murderPlr.Character:FindFirstChild("Head")
+local distanciaDoMurder = (meuHrp.Position - mHrp.Position).Magnitude
+-- Se a arma está dropada, ignora qualquer outra lógica imediatamente
+if armaDropada and not meuChar:FindFirstChild("Gun") and not LocalPlayer.Backpack:FindFirstChild("Gun") then
+calcularRotaPathfinding(armaDropada.Position)
 else
-local novoAlvo = getClosestRivalsTargetInFOV()
-if novoAlvo then RivalsAlvoAtual = novoAlvo end
+-- Se a arma já foi coletada e está no inventário, inicia caça e tiro
+if meuChar:FindFirstChild("Gun") or LocalPlayer.Backpack:FindFirstChild("Gun") then
+local tempoAtual = os.clock()
+if tempoAtual - ultimaExpansaoMurder > 0.5 then
+ultimaExpansaoMurder = tempoAtual
+mHrp.Size = Vector3.new(35, 35, 35)
+mHrp.Transparency = 0.7
+mHrp.Color = Color3.fromRGB(255, 0, 0)
+mHrp.CanCollide = false
 end
-end
-end
--- MM2 Advanced FOV Aimbot Logic
-if MasterMM2Aimbot then
-MM2FOVring.Position = Cam.ViewportSize / 2
-if MM2AimbotAtivado then
-if MM2AlvoAtual and checarAlvoValidoMM2(MM2AlvoAtual) then
-local headPart = MM2AlvoAtual:FindFirstChild("Head")
-if headPart then Cam.CFrame = CFrame.lookAt(Cam.CFrame.Position, headPart.Position) end
+calcularRotaPathfinding(mHrp.Position)
+if mHead then Cam.CFrame = CFrame.new(Cam.CFrame.Position, mHead.Position) end
+local revolverNaMao = meuChar:FindFirstChild("Gun")
+if revolverNaMao then
+VirtualUser:Button1Down(Vector2.new(0, 0), Cam.CFrame)
+task.wait(0.02)
+VirtualUser:Button1Up(Vector2.new(0, 0), Cam.CFrame)
 else
-local novoAlvo = getClosestMM2TargetInFOV()
-if novoAlvo then MM2AlvoAtual = novoAlvo end
-end
-end
-end
--- MM2 Real-time Box ESP Engine Loop
-for _, player in ipairs(Players:GetPlayers()) do
-if player ~= LocalPlayer then
-gerenciarElementoMM2ESP(player, espFolder)
-local dados = CacheMM2ESP[player]
-if MasterMM2ESP and dados then
-local char = player.Character
-local root = char and char:FindFirstChild("HumanoidRootPart")
-local hum = char and char:FindFirstChildOfClass("Humanoid")
-if root and hum and hum.Health > 0 then
-local pos, naTela = Cam:WorldToViewportPoint(root.Position)
-if naTela then
-local escala = 1000 / pos.Z
-local sizeX = 2.5 * escala
-local sizeY = 4.5 * escala
-dados.Box.Size = UDim2.new(0, sizeX, 0, sizeY)
-dados.Box.Position = UDim2.new(0, pos.X - sizeX / 2, 0, pos.Y - sizeY / 2)
-dados.Stroke.Color = obterCorDaFuncaoMM2(player)
-dados.Box.Visible = true
-else
-dados.Box.Visible = false
+local armaMochila = LocalPlayer.Backpack:FindFirstChild("Gun")
+if armaMochila then armaMochila.Parent = meuChar end
 end
 else
-dados.Box.Visible = false
-end
+-- Arma não dropou: Desvia do Murder ou Farma Moedas normalmente
+if distanciaDoMurder < 45 then
+local direcaoFuga = (meuHrp.Position - mHrp.Position).Unit
+local pontoFuga = meuHrp.Position + (direcaoFuga * 30)
+calcularRotaPathfinding(pontoFuga)
 else
-if dados and dados.Box then dados.Box.Visible = false end
+local moedaAlvo = obterMoedaMaisProxima()
+if moedaAlvo then calcularRotaPathfinding(moedaAlvo.Position) end
 end
 end
+end
+end
+end
+-- ROUTINE 2: AI MURDERER BOT (HUNTING ENGINE)
+if AutoPlayMurderAtivado then
+local vitimaAlvo = obterAlvoParaMurder()
+if vitimaAlvo then
+local distParaVitima = (meuHrp.Position - vitimaAlvo.Position).Magnitude
+calcularRotaPathfinding(vitimaAlvo.Position)
+if distParaVitima <= 7.5 then
+local faca = meuChar:FindFirstChildWhichIsA("Tool") or LocalPlayer.Backpack:FindFirstChildWhichIsA("Tool")
+if faca and faca.Parent ~= meuChar then faca.Parent = meuChar end
+VirtualUser:Button1Down(Vector2.new(0, 0), Cam.CFrame)
+task.wait(0.05)
+VirtualUser:Button1Up(Vector2.new(0, 0), Cam.CFrame)
+end
+end
+end
+end
+end)
+-- Anti-AFK Listener Loop
+LocalPlayer.Idled:Connect(function()
+if AntiAFKAtivado then
+VirtualUser:Button2Down(Vector2.new(0,0), Cam.CFrame)
+task.wait(1)
+VirtualUser:Button2Up(Vector2.new(0,0), Cam.CFrame)
 end
 end)
 Connections.Stepped = RunService.Stepped:Connect(function()
 if isNoclipActive and LocalPlayer.Character then
 for _, part in pairs(LocalPlayer.Character:GetDescendants()) do if part:IsA("BasePart") then part.CanCollide = false end end
 end
-if HighlightsAtivado then gerenciarHighlights() end
+if HighlightsMM2Ativado then gerenciarHighlightsMM2() end
 end)
 Connections.InputBegan = UserInputService.InputBegan:Connect(function(input, gpe)
 if UserInputService:GetFocusedTextBox() then return end
@@ -789,24 +808,14 @@ local hrp = char:FindFirstChild("HumanoidRootPart")
 if hrp then hrp.Velocity = Vector3.new(hrp.Velocity.X, 50, hrp.Velocity.Z) end
 end
 end
-if input.KeyCode == Enum.KeyCode.F and MasterRivalsAimbot then
-RivalsAimbotAtivado = not RivalsAimbotAtivado
-if not RivalsAimbotAtivado then RivalsAlvoAtual = nil end
-end
-if input.KeyCode == Enum.KeyCode.F and MasterMM2Aimbot then
-MM2AimbotAtivado = not MM2AimbotAtivado
-if not MM2AimbotAtivado then MM2AlvoAtual = nil end
-end
 if input.KeyCode == ToggleKey then
 mainFrame.Visible = not mainFrame.Visible
 elseif input.KeyCode == DestroyKey then
 for _, conn in pairs(Connections) do if conn then conn:Disconnect() end end
 local hum = getHumanoid() if hum then hum.WalkSpeed = 16 end
 resetAllHitboxes()
-HighlightsAtivado = false gerenciarHighlights()
-espFolder:ClearAllChildren() CacheMM2ESP = {}
-RivalsFOVring.Visible = false RivalsFOVring:Remove()
-MM2FOVring.Visible = false MM2FOVring:Remove()
+HighlightsMM2Ativado = false gerenciarHighlightsMM2()
+if AFKPlatform then AFKPlatform:Destroy() end
 screenGui:Destroy()
 end
 end)
