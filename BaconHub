@@ -1,5 +1,4 @@
--- Femboy Cute Hub V19.7 (AI Survivor Fixed Syntax & Gun Pathfinding Priority)
--- Made by @Soy_Haru Femboy
+- Bacon Hub V27.0 (Ultimate Roblox Multi-Game Edition - Compiling Fixed)
 -- Supported: sem título sem tag / Catalog Avatar Creator / Murder Mystery 2
 
 local Players = game:GetService("Players")
@@ -47,6 +46,10 @@ local AutoPlayInocenteAtivado = false
 local AutoPlayMurderAtivado = false
 local ultimoCalculoRota = 0
 local ultimaExpansaoMurder = 0
+
+-- Text Corrector States
+local TextoDigitadoAtualmente = ""
+local TextoResultadoCorrigido = ""
 
 -- AFK & Anti-AFK States
 local AntiAFKAtivado = false
@@ -153,96 +156,154 @@ local function stealOutfit(plr)
 end
 
 -- ========================================
+-- HIGH-END DICIO PATTERN GRAMMAR ENGINE
+-- ========================================
+
+local function executarCorrecaoDeTexto(textoBruto)
+    if not textoBruto or string.len(textoBruto) == 0 then return "" end
+    
+    textoBruto = string.gsub(textoBruto, "o+", "o")
+    textoBruto = string.gsub(textoBruto, "a+", "a")
+    textoBruto = string.gsub(textoBruto, "e+", "e")
+    textoBruto = string.gsub(textoBruto, "i+", "i")
+    
+    textoBruto = string.gsub(textoBruto, "%bvc%", "você")
+    textoBruto = string.gsub(textoBruto, "%bvcs%", "vocês")
+    textoBruto = string.gsub(textoBruto, "%bpq%", "porque")
+    textoBruto = string.gsub(textoBruto, "%boq%", "o que")
+    textoBruto = string.gsub(textoBruto, "%btbm%", "também")
+    textoBruto = string.gsub(textoBruto, "%bmt%", "muito")
+    textoBruto = string.gsub(textoBruto, "%bmto%", "muito")
+    textoBruto = string.gsub(textoBruto, "%btd%", "tudo")
+    textoBruto = string.gsub(textoBruto, "%bhj%", "hoje")
+    textoBruto = string.gsub(textoBruto, "%bkd%", "cadê")
+
+    local padroesDicio = {
+        ["%bcomcerteza%"] = "com certeza", ["%bconcerteza%"] = "com certeza",
+        ["%bderrepente%"] = "de repente", ["%bderepente%"] = "de repente",
+        ["%bnada haver%"] = "nada a ver", ["%bnada aver%"] = "nada a ver",
+        ["%bporisso%"] = "por isso", ["%bfasso%"] = "faço", ["%bpoblema%"] = "problema",
+        ["%bprobrema%"] = "problema", ["%bfrustado%"] = "frustrado", ["%bmenas%"] = "menos",
+        ["%bseje%"] = "seja", ["%besteje%"] = "esteja", ["%bcompania%"] = "companhia",
+        ["%bas vezes%"] = "às vezes", ["%bas vezes,%"] = "às vezes,",
+        ["%ba tarde%"] = "à tarde", ["%ba noite%"] = "à noite",
+        ["%bnao%"] = "não", ["%bvoce%"] = "você", ["%bvoces%"] = "vocês", ["%beh%"] = "é",
+        ["%bja%"] = "já", ["%bla%"] = "lá", ["%bca%"] = "cá", ["%bate%"] = "até",
+        ["%bso%"] = "só", ["%balguem%"] = "alguém", ["%bninguem%"] = "ninguém",
+        ["%btambem%"] = "também", ["%bentao%"] = "então", ["%birmao%"] = "irmão",
+        ["%bcoracao%"] = "coração", ["%batencao%"] = "atenção", ["%bproximo%"] = "próximo",
+        ["%bproxima%"] = "próxima", ["%brapido%"] = "rápido", ["%bfacil%"] = "fácil",
+        ["%bdificil%"] = "difícil", ["%bincrivel%"] = "incrível", ["%bultimo%"] = "último",
+        ["%bultima%"] = "última", ["%besta%"] = "está", ["%bestao%"] = "estão",
+        ["%bsao%"] = "são", ["%btao%"] = "tão", ["%bcade%"] = "cadê",
+        [" mas nao "] = ", mas não ", [" mais nao "] = ", mas não "
+    }
+
+    for erro, correcao in pairs(padroesDicio) do
+        textoBruto = string.gsub(textoBruto, erro, correcao)
+    end
+
+    if string.find(textoBruto, " mas ") and not string.find(textoBruto, ", mas ") then
+        textoBruto = string.gsub(textoBruto, " mas ", ", mas ")
+    end
+    if string.find(textoBruto, " porque ") and not string.find(textoBruto, ", porque ") then
+        textoBruto = string.gsub(textoBruto, " porque ", ", porque ")
+    end
+    if string.find(textoBruto, " pois ") and not string.find(textoBruto, ", pois ") then
+        textoBruto = string.gsub(textoBruto, " pois ", ", pois ")
+    end
+
+    textoBruto = string.upper(string.sub(textoBruto, 1, 1)) .. string.sub(textoBruto, 2)
+    
+    local ultimo = string.sub(textoBruto, -1)
+    if ultimo ~= "." and ultimo ~= "!" and ultimo ~= "?" and ultimo ~= ")" and ultimo ~= "]" then
+        textoBruto = textoBruto .. "." -- FIXED TYPO VARIABLE NAME
+    end
+
+    return textoBruto
+end
+
+-- ========================================
 -- MM2 MODULE ADVANCED ENGINE
 -- ========================================
 
 local function obterCorDaFuncaoMM2(player)
-    local char = player.Character
-    if not char then return CoresMM2.Innocent end
-
-    for _, item in ipairs(char:GetChildren()) do
-        if item:IsA("Tool") then
-            local nome = item.Name:lower()
-            if nome:find("knife") or nome:find("faca") or item:FindFirstChild("KnifeScript") then return CoresMM2.Murder end
-            if nome:find("gun") or nome:find("arma") or nome:find("revolver") or item:FindFirstChild("GunScript") then return CoresMM2.Sheriff end
-        end
-    end
-
-    local bp = player:FindFirstChild("Backpack")
-    if bp then
-        for _, item in ipairs(bp:GetChildren()) do
-            local nome = item.Name:lower()
-            if nome:find("knife") or item:FindFirstChild("KnifeScript") then return CoresMM2.Murder end
-            if nome:find("gun") or item:FindFirstChild("GunScript") then return CoresMM2.Sheriff end
-        end
-    end
-
-    local playerData = player:FindFirstChild("PlayerData") or player:FindFirstChild("temp")
-    if playerData and playerData:FindFirstChild("Role") then
-        local role = playerData.Role.Value:lower()
-        if role == "murderer" or role == "murder" then return CoresMM2.Murder end
-        if role == "sheriff" then return CoresMM2.Sheriff end
-    end
-    return CoresMM2.Innocent
+local char = player.Character
+if not char then return CoresMM2.Innocent end
+for _, item in ipairs(char:GetChildren()) do
+if item:IsA("Tool") then
+local nome = item.Name:lower()
+if nome:find("knife") or nome:find("faca") or item:FindFirstChild("KnifeScript") then return CoresMM2.Murder end
+if nome:find("gun") or nome:find("arma") or nome:find("revolver") or item:FindFirstChild("GunScript") then return CoresMM2.Sheriff end
 end
-
+end
+local bp = player:FindFirstChild("Backpack")
+if bp then
+for _, item in ipairs(bp:GetChildren()) do
+local nome = item.Name:lower()
+if nome:find("knife") or item:FindFirstChild("KnifeScript") then return CoresMM2.Murder end
+if nome:find("gun") or item:FindFirstChild("GunScript") then return CoresMM2.Sheriff end
+end
+end
+local playerData = player:FindFirstChild("PlayerData") or player:FindFirstChild("temp")
+if playerData and playerData:FindFirstChild("Role") then
+local role = playerData.Role.Value:lower()
+if role == "murderer" or role == "murder" then return CoresMM2.Murder end
+if role == "sheriff" then return CoresMM2.Sheriff end
+end
+return CoresMM2.Innocent
+end
 local function encontrarMurderNoServidor()
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and obterCorDaFuncaoMM2(p) == CoresMM2.Murder then
-            return p
-        end
-    end
-    return nil
+for _, p in pairs(Players:GetPlayers()) do
+if p ~= LocalPlayer and obterCorDaFuncaoMM2(p) == CoresMM2.Murder then
+return p
 end
-
+end
+return nil
+end
 local function localizarArmaDropada()
-    local g = workspace:FindFirstChild("GunDrop")
-    if g and g:IsA("Part") then return g end
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj.Name == "GunDrop" and obj:IsA("Part") then return obj end
-    end
-    return nil
+local g = workspace:FindFirstChild("GunDrop")
+if g and g:IsA("Part") then return g end
+for _, obj in ipairs(workspace:GetDescendants()) do
+if obj.Name == "GunDrop" and obj:IsA("Part") then return obj end
 end
-
+return nil
+end
 local function obterMoedaMaisProxima()
-    local menorDistancia = math.huge
-    local melhorMoeda = nil
-    local meuChar = LocalPlayer.Character
-    if not meuChar or not meuChar:FindFirstChild("HumanoidRootPart") then return nil end
-    local mHrp = meuChar.HumanoidRootPart
-
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if (obj.Name == "Coin" or obj.Name == "CoinContainer" or obj.Name == "Gold") and obj:IsA("BasePart") then
-            local dist = (mHrp.Position - obj.Position).Magnitude
-            if dist < menorDistancia then
-                menorDistancia = dist
-                melhorMoeda = obj
-            end
-        end
-    end
-    return melhorMoeda
+local menorDistancia = math.huge
+local melhorMoeda = nil
+local meuChar = LocalPlayer.Character
+if not meuChar or not meuChar:FindFirstChild("HumanoidRootPart") then return nil end
+local mHrp = meuChar.HumanoidRootPart
+for _, obj in ipairs(workspace:GetDescendants()) do
+if (obj.Name == "Coin" or obj.Name == "CoinContainer" or obj.Name == "Gold") and obj:IsA("BasePart") then
+local dist = (mHrp.Position - obj.Position).Magnitude
+if dist < menorDistancia then
+menorDistancia = dist
+melhorMoeda = obj
 end
-
+end
+end
+return melhorMoeda
+end
 local function obterAlvoParaMurder()
-    local menorDistancia = math.huge
-    local melhorAlvoInocente = nil
-    local meuChar = LocalPlayer.Character
-    if not meuChar or not meuChar:FindFirstChild("HumanoidRootPart") then return nil end
-    local meuHrp = meuChar.HumanoidRootPart
-
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChildOfClass("Humanoid") then
-            if p.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
-                if obterCorDaFuncaoMM2(p) == CoresMM2.Sheriff then
-                    return p.Character.HumanoidRootPart
-                end
-            end
-        end
-    end
-
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChildOfClass("Humanoid") then
-            if p.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+local menorDistancia = math.huge
+local melhorAlvoInocente = nil
+local meuChar = LocalPlayer.Character
+if not meuChar or not meuChar:FindFirstChild("HumanoidRootPart") then return nil end
+local meuHrp = meuChar.HumanoidRootPart
+for _, p in pairs(Players:GetPlayers()) do
+if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChildOfClass("Humanoid") then
+if p.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+if obterCorDaFuncaoMM2(p) == CoresMM2.Sheriff then
+return p.Character.HumanoidRootPart
+end
+end
+end
+end
+for _, p in pairs(Players:GetPlayers()) do
+if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChildOfClass("Humanoid") then
+if p.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
 local dist = (meuHrp.Position - p.Character.HumanoidRootPart.Position).Magnitude
 if dist < menorDistancia then
 menorDistancia = dist
@@ -307,7 +368,7 @@ local meuChar = LocalPlayer.Character
 if not meuChar or not meuChar:FindFirstChild("HumanoidRootPart") then return nil end
 local meuHrp = meuChar.HumanoidRootPart
 for _, jogador in pairs(Players:GetPlayers()) do
-if jogador ~= LocalPlayer and jogador.Character and jogador.Character:FindFirstChild("Humanoid") and jogador.Character:FindFirstChildOfClass("Humanoid") and jogador.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+if jogador ~= LocalPlayer and jogador.Character and jogador.Character:FindFirstChild("Head") and jogador.Character:FindFirstChildOfClass("Humanoid") and jogador.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
 local cargoInimigo = obterCorDaFuncaoMM2(jogador)
 if meuCargo ~= CoresMM2.Murder then
 if cargoInimigo == CoresMM2.Murder then
@@ -339,17 +400,18 @@ end
 return melhorAlvo
 end
 -- ========================================
--- GUI CREATION (TRANSPARENT MAIN)
+-- GUI CREATION (BACON HUB VISUAL CONTRAST)
 -- ========================================
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "FemboyCuteHub"
+screenGui.Name = "BaconHub"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local mainFrame = Instance.new("ImageLabel")
 mainFrame.Size = UDim2.new(0, 550, 0, 350)
 mainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
+mainFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 mainFrame.BackgroundTransparency = 1
-mainFrame.Image = "rbxassetid://85742663719729"
+mainFrame.Image = "rbxassetid://131134468217147"
 mainFrame.ScaleType = Enum.ScaleType.Crop
 mainFrame.ImageTransparency = 0
 mainFrame.Active = true
@@ -363,9 +425,9 @@ topBar.Parent = mainFrame
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -40, 1, 0)
 titleLabel.Position = UDim2.new(0, 12, 0, 0)
-titleLabel.Text = "Femboy Cute Hub | Made by Soy_Haru Femboy"
+titleLabel.Text = "Bacon Hub | Private Multi-Game Script"
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextSize = 13
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.BackgroundTransparency = 1
@@ -392,7 +454,7 @@ local scrollingFrame = Instance.new("ScrollingFrame")
 scrollingFrame.Size = UDim2.new(1, 0, 1, 0)
 scrollingFrame.BackgroundTransparency = 1
 scrollingFrame.ScrollBarThickness = 4
-scrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 0, 0)
+scrollingFrame.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255)
 scrollingFrame.Visible = false
 scrollingFrame.Parent = contentContainer
 local listLayout = Instance.new("UIListLayout")
@@ -411,21 +473,21 @@ local firstTab = true
 local function createTab(name)
 local tabBtn = Instance.new("TextButton")
 tabBtn.Size = UDim2.new(0.9, 0, 0, 32)
-tabBtn.BackgroundTransparency = 0.8
-tabBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+tabBtn.BackgroundTransparency = 0.5
+tabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 tabBtn.Font = Enum.Font.GothamMedium
 tabBtn.Text = name
 tabBtn.TextSize = 12
-tabBtn.TextColor3 = firstTab and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(70, 70, 70)
+tabBtn.TextColor3 = firstTab and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(200, 200, 200)
 tabBtn.Parent = sidebar
 Instance.new("UICorner", tabBtn).CornerRadius = UDim.new(0, 6)
 local page = createPage(name)
 if firstTab then page.Visible = true firstTab = false end
 tabBtn.MouseButton1Click:Connect(function()
 for _, p in pairs(Pages) do p.Visible = false end
-for _, b in ipairs(sidebar:GetChildren()) do if b:IsA("TextButton") then b.TextColor3 = Color3.fromRGB(70, 70, 70) end end
+for _, b in ipairs(sidebar:GetChildren()) do if b:IsA("TextButton") then b.TextColor3 = Color3.fromRGB(200, 200, 200) end end
 page.Visible = true
-tabBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+tabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 end)
 return page
 end
@@ -435,7 +497,7 @@ label.Size = UDim2.new(0.92, 0, 0, 25)
 label.BackgroundTransparency = 1
 label.Text = sectionTitle
 label.Font = Enum.Font.GothamBold
-label.TextColor3 = Color3.fromRGB(0, 0, 0)
+label.TextColor3 = Color3.fromRGB(255, 255, 255)
 label.TextSize = 13
 label.TextXAlignment = Enum.TextXAlignment.Left
 label.Parent = parentPage
@@ -444,8 +506,8 @@ local function createToggle(parentPage, text, defaultState, callback)
 local state = defaultState
 local toggleFrame = Instance.new("Frame")
 toggleFrame.Size = UDim2.new(0.92, 0, 0, 40)
-toggleFrame.BackgroundTransparency = 0.85
-toggleFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+toggleFrame.BackgroundTransparency = 0.5
+toggleFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 toggleFrame.Parent = parentPage
 Instance.new("UICorner", toggleFrame).CornerRadius = UDim.new(0, 6)
 local label = Instance.new("TextLabel")
@@ -454,14 +516,14 @@ label.Position = UDim2.new(0, 12, 0, 0)
 label.BackgroundTransparency = 1
 label.Text = text
 label.Font = Enum.Font.GothamMedium
-label.TextColor3 = Color3.fromRGB(0, 0, 0)
+label.TextColor3 = Color3.fromRGB(255, 255, 255)
 label.TextSize = 12
 label.TextXAlignment = Enum.TextXAlignment.Left
 label.Parent = toggleFrame
 local switch = Instance.new("TextButton")
 switch.Size = UDim2.new(0, 38, 0, 20)
 switch.Position = UDim2.new(1, -50, 0.5, -10)
-switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(180, 180, 180)
+switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(100, 100, 100)
 switch.Text = ""
 switch.Parent = toggleFrame
 Instance.new("UICorner", switch).CornerRadius = UDim.new(0, 10)
@@ -473,7 +535,7 @@ circle.Parent = switch
 Instance.new("UICorner", circle).CornerRadius = UDim.new(0, 8)
 switch.MouseButton1Click:Connect(function()
 state = not state
-switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(180, 180, 180)
+switch.BackgroundColor3 = state and Color3.fromRGB(0, 180, 0) or Color3.fromRGB(100, 100, 100)
 circle:TweenPosition(state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8), "Out", "Quart", 0.2, true)
 callback(state)
 end)
@@ -482,8 +544,8 @@ end
 local function createTextBox(parentPage, placeholder, defaultText, callback)
 local boxFrame = Instance.new("Frame")
 boxFrame.Size = UDim2.new(0.92, 0, 0, 40)
-boxFrame.BackgroundTransparency = 0.85
-boxFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+boxFrame.BackgroundTransparency = 0.5
+boxFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 boxFrame.Parent = parentPage
 Instance.new("UICorner", boxFrame).CornerRadius = UDim.new(0, 6)
 local label = Instance.new("TextLabel")
@@ -492,18 +554,18 @@ label.Position = UDim2.new(0, 12, 0, 0)
 label.BackgroundTransparency = 1
 label.Text = placeholder
 label.Font = Enum.Font.GothamMedium
-label.TextColor3 = Color3.fromRGB(0, 0, 0)
+label.TextColor3 = Color3.fromRGB(255, 255, 255)
 label.TextSize = 12
 label.TextXAlignment = Enum.TextXAlignment.Left
 label.Parent = boxFrame
 local box = Instance.new("TextBox")
 box.Size = UDim2.new(0, 100, 0, 26)
 box.Position = UDim2.new(1, -112, 0.5, -13)
-box.BackgroundTransparency = 0.5
-box.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+box.BackgroundTransparency = 0.3
+box.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 box.Text = defaultText
 box.Font = Enum.Font.GothamMedium
-box.TextColor3 = Color3.fromRGB(0, 120, 0)
+box.TextColor3 = Color3.fromRGB(0, 255, 0)
 box.TextSize = 12
 box.Parent = boxFrame
 Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
@@ -515,8 +577,8 @@ end
 local function createButton(parentPage, text, callback)
 local btnFrame = Instance.new("Frame")
 btnFrame.Size = UDim2.new(0.92, 0, 0, 40)
-btnFrame.BackgroundTransparency = 0.85
-btnFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+btnFrame.BackgroundTransparency = 0.5
+btnFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 btnFrame.Parent = parentPage
 Instance.new("UICorner", btnFrame).CornerRadius = UDim.new(0, 6)
 local btn = Instance.new("TextButton")
@@ -524,7 +586,7 @@ btn.Size = UDim2.new(1, 0, 1, 0)
 btn.BackgroundTransparency = 1
 btn.Text = text
 btn.Font = Enum.Font.GothamMedium
-btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+btn.TextColor3 = Color3.fromRGB(255, 255, 255)
 btn.TextSize = 12
 btn.Parent = btnFrame
 btn.MouseButton1Click:Connect(callback)
@@ -537,8 +599,9 @@ local mainPage = createTab("Main / Movement")
 local combatPage = createTab("Combat / Hitbox")
 local mm2Page = createTab("MM2 Vision")
 local autoPlayPage = createTab("Auto Play Bot")
+local correctorPage = createTab("Text Corrector")
 local stealerPage = createTab("Catalog Stealer")
-local settingsPage = createTab("Settings")
+local settingsPage = createTab("Configurações")
 local creditsPage = createTab("Credits")
 -- Main Page Content
 createSection(mainPage, "Movement Settings")
@@ -596,30 +659,75 @@ if not toggled then
 local hum = getHumanoid() if hum then hum:MoveTo(LocalPlayer.Character.HumanoidRootPart.Position) end
 end
 end)
+-- Text Corrector Tab Content
+createSection(correctorPage, "Dicio.com.br AI Lexical Processor")
+local inputTextBox = createTextBox(correctorPage, "Type text here (Press Enter):", "analise esse poblema fasso comcerteza oq vc axa la", function(text)
+TextoDigitadoAtualmente = text
+TextoResultadoCorrigido = executarCorrecaoDeTexto(text)
+end)
+local resultFrame = Instance.new("Frame")
+resultFrame.Size = UDim2.new(0.92, 0, 0, 40)
+resultFrame.BackgroundTransparency = 0.5
+resultFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+resultFrame.Parent = correctorPage
+Instance.new("UICorner", resultFrame).CornerRadius = UDim.new(0, 6)
+local labelIdentificar = Instance.new("TextLabel")
+labelIdentificar.Size = UDim2.new(0, 110, 1, 0)
+labelIdentificar.Position = UDim2.new(0, 12, 0, 0)
+labelIdentificar.BackgroundTransparency = 1
+labelIdentificar.Text = "Dicio Analysis:"
+labelIdentificar.Font = Enum.Font.GothamBold
+labelIdentificar.TextColor3 = Color3.fromRGB(255, 255, 255)
+labelIdentificar.TextSize = 11
+labelIdentificar.TextXAlignment = Enum.TextXAlignment.Left
+labelIdentificar.Parent = resultFrame
+local textDisplayOutput = Instance.new("TextLabel")
+textDisplayOutput.Size = UDim2.new(0.65, 0, 1, 0)
+textDisplayOutput.Position = UDim2.new(0, 125, 0, 0)
+textDisplayOutput.BackgroundTransparency = 1
+textDisplayOutput.Text = "Waiting for input..."
+textDisplayOutput.Font = Enum.Font.GothamMedium
+textDisplayOutput.TextColor3 = Color3.fromRGB(0, 255, 0)
+textDisplayOutput.TextSize = 11
+textDisplayOutput.TextXAlignment = Enum.TextXAlignment.Left
+textDisplayOutput.Parent = resultFrame
+inputTextBox:GetPropertyChangedSignal("Text"):Connect(function()
+task.wait(0.02)
+local fixed = executarCorrecaoDeTexto(inputTextBox.Text)
+textDisplayOutput.Text = fixed
+end)
+local copyTextBtn = createButton(correctorPage, "CLICK TO COPY CORRECTED TEXT", function()
+local pronto = textDisplayOutput.Text
+if pronto ~= "Waiting for input..." and pronto ~= "" then
+setclipboard(pronto)
+copyTextBtn.Text = "COPIED TO CLIPBOARD! ✅"
+task.delay(2, function() pcall(function() copyTextBtn.Text = "CLICK TO COPY CORRECTED TEXT" end) end)
+end
+end)
 -- Catalog Stealer Content
 createSection(stealerPage, "Outfit Stealer Logic")
 local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(0.92, 0, 0, 30) statusLabel.BackgroundTransparency = 0.85 statusLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-statusLabel.Text = "TARGET: NONE (SELECT BELOW)" statusLabel.TextColor3 = Color3.fromRGB(150, 0, 0) statusLabel.Font = Enum.Font.GothamBold statusLabel.TextSize = 12 statusLabel.Parent = stealerPage
+statusLabel.Size = UDim2.new(0.92, 0, 0, 30) statusLabel.BackgroundTransparency = 0.5 statusLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+statusLabel.Text = "TARGET: NONE (SELECT BELOW)" statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0) statusLabel.Font = Enum.Font.GothamBold statusLabel.TextSize = 12 statusLabel.Parent = stealerPage
 Instance.new("UICorner", statusLabel).CornerRadius = UDim.new(0, 6)
 local stealBtn = Instance.new("TextButton")
-stealBtn.Size = UDim2.new(0.92, 0, 0, 35) stealBtn.BackgroundTransparency = 0.8 stealBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-stealBtn.Text = "STEAL OUTFIT" stealBtn.Font = Enum.Font.GothamBold stealBtn.TextColor3 = Color3.fromRGB(0, 0, 0) stealBtn.TextSize = 12 stealBtn.Parent = stealerPage
+stealBtn.Size = UDim2.new(0.92, 0, 0, 35) stealBtn.BackgroundTransparency = 0.5 stealBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+stealBtn.Text = "STEAL OUTFIT" stealBtn.Font = Enum.Font.GothamBold stealBtn.TextColor3 = Color3.fromRGB(255, 255, 255) stealBtn.TextSize = 12 stealBtn.Parent = stealerPage
 Instance.new("UICorner", stealBtn).CornerRadius = UDim.new(0, 6)
 local playerListScroll = Instance.new("ScrollingFrame")
-playerListScroll.Size = UDim2.new(0.92, 0, 0, 110) playerListScroll.BackgroundTransparency = 0.9 playerListScroll.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-playerListScroll.ScrollBarThickness = 4 playerListScroll.ScrollBarImageColor3 = Color3.fromRGB(0, 0, 0) playerListScroll.Parent = stealerPage
+playerListScroll.Size = UDim2.new(0.92, 0, 0, 110) playerListScroll.BackgroundTransparency = 0.5 playerListScroll.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+playerListScroll.ScrollBarThickness = 4 playerListScroll.ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255) playerListScroll.Parent = stealerPage
 Instance.new("UICorner", playerListScroll).CornerRadius = UDim.new(0, 6)
 local listLayout = Instance.new("UIListLayout") listLayout.Padding = UDim.new(0, 4) listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center listLayout.Parent = playerListScroll
 local function updatePlayerList()
 for _, child in pairs(playerListScroll:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
 for _, player in pairs(Players:GetPlayers()) do
 if player ~= LocalPlayer then
-local pBtn = Instance.new("TextButton") pBtn.Size = UDim2.new(0.95, 0, 0, 28) pBtn.BackgroundTransparency = 0.85 pBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-pBtn.Text = player.Name pBtn.Font = Enum.Font.Gotham pBtn.TextColor3 = Color3.fromRGB(0, 0, 0) pBtn.TextSize = 11 pBtn.Parent = playerListScroll
+local pBtn = Instance.new("TextButton") pBtn.Size = UDim2.new(0.95, 0, 0, 28) pBtn.BackgroundTransparency = 0.5 pBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+pBtn.Text = player.Name pBtn.Font = Enum.Font.Gotham pBtn.TextColor3 = Color3.fromRGB(255, 255, 255) pBtn.TextSize = 11 pBtn.Parent = playerListScroll
 Instance.new("UICorner", pBtn).CornerRadius = UDim.new(0, 4)
 pBtn.MouseButton1Click:Connect(function()
-JogadorSelecionado = player statusLabel.Text = "TARGET: " .. player.Name:upper() statusLabel.TextColor3 = Color3.fromRGB(0, 120, 0)
+JogadorSelecionado = player statusLabel.Text = "TARGET: " .. player.Name:upper() statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 end)
 end
 end
@@ -670,23 +778,19 @@ end
 end
 end)
 -- Credits Page Content
-createSection(creditsPage, "Developer Information")
-local devLabel = Instance.new("TextLabel")
-devLabel.Size = UDim2.new(0.92, 0, 0, 30)
-devLabel.BackgroundTransparency = 1
-devLabel.Text = "Owner / Main Dev: Soy_Haru"
-devLabel.Font = Enum.Font.GothamBold
-devLabel.TextColor3 = Color3.fromRGB(0, 0, 0) devLabel.TextSize = 13 devLabel.TextXAlignment = Enum.TextXAlignment.Left devLabel.Parent = creditsPage
-local ytBtn = createButton(creditsPage, "COPY YOUTUBE CHANNEL", function()
-setclipboard("youtube.com")
-creditsPage:FindFirstChild("COPY YOUTUBE CHANNEL").Frame.TextButton.Text = "COPIED YOUTUBE LINK!"
-task.delay(2, function() pcall(function() creditsPage:FindFirstChild("COPY YOUTUBE CHANNEL").Frame.TextButton.Text = "COPY YOUTUBE CHANNEL" end) end)
-end)
-local dcBtn = createButton(creditsPage, "COPY FRIEND'S DISCORD SERVER", function()
-setclipboard("discord.gg")
-creditsPage:FindFirstChild("COPY FRIEND'S DISCORD SERVER").Frame.TextButton.Text = "COPIED DISCORD LINK!"
-task.delay(2, function() pcall(function() creditsPage:FindFirstChild("COPY FRIEND'S DISCORD SERVER").Frame.TextButton.Text = "COPY FRIEND'S DISCORD SERVER" end) end)
-end)
+createSection(creditsPage, "Bacon Hub Official Team")
+local ownerLabel = Instance.new("TextLabel")
+ownerLabel.Size = UDim2.new(0.92, 0, 0, 30)
+ownerLabel.BackgroundTransparency = 1
+ownerLabel.Text = "Hub Owner: Bacon aura"
+ownerLabel.Font = Enum.Font.GothamBold
+ownerLabel.TextColor3 = Color3.fromRGB(255, 255, 255) ownerLabel.TextSize = 12 ownerLabel.TextXAlignment = Enum.TextXAlignment.Left ownerLabel.Parent = creditsPage
+local testerLabel = Instance.new("TextLabel")
+testerLabel.Size = UDim2.new(0.92, 0, 0, 30)
+testerLabel.BackgroundTransparency = 1
+testerLabel.Text = "Beta Tester: Roxy"
+testerLabel.Font = Enum.Font.GothamBold
+testerLabel.TextColor3 = Color3.fromRGB(255, 255, 255) testerLabel.TextSize = 12 testerLabel.TextXAlignment = Enum.TextXAlignment.Left testerLabel.Parent = creditsPage
 -- ========================================
 -- SYSTEM CORE ENGINE LOOPS
 -- ========================================
@@ -721,7 +825,6 @@ local meuChar = LocalPlayer.Character
 local meuHum = meuChar and meuChar:FindFirstChildOfClass("Humanoid")
 local meuHrp = meuChar and meuChar:FindFirstChild("HumanoidRootPart")
 if meuHrp and meuHum then
--- ROUTINE 1: FIXED AI SURVIVOR BOT WITH ABSOLUTE GUN DROP PRIORITY
 if AutoPlayInocenteAtivado then
 local armaDropada = localizarArmaDropada()
 local murderPlr = encontrarMurderNoServidor()
@@ -729,11 +832,9 @@ if murderPlr and murderPlr.Character and murderPlr.Character:FindFirstChild("Hum
 local mHrp = murderPlr.Character.HumanoidRootPart
 local mHead = murderPlr.Character:FindFirstChild("Head")
 local distanciaDoMurder = (meuHrp.Position - mHrp.Position).Magnitude
--- Se a arma está dropada, ignora qualquer outra lógica imediatamente
 if armaDropada and not meuChar:FindFirstChild("Gun") and not LocalPlayer.Backpack:FindFirstChild("Gun") then
 calcularRotaPathfinding(armaDropada.Position)
 else
--- Se a arma já foi coletada e está no inventário, inicia caça e tiro
 if meuChar:FindFirstChild("Gun") or LocalPlayer.Backpack:FindFirstChild("Gun") then
 local tempoAtual = os.clock()
 if tempoAtual - ultimaExpansaoMurder > 0.5 then
@@ -755,7 +856,6 @@ local armaMochila = LocalPlayer.Backpack:FindFirstChild("Gun")
 if armaMochila then armaMochila.Parent = meuChar end
 end
 else
--- Arma não dropou: Desvia do Murder ou Farma Moedas normalmente
 if distanciaDoMurder < 45 then
 local direcaoFuga = (meuHrp.Position - mHrp.Position).Unit
 local pontoFuga = meuHrp.Position + (direcaoFuga * 30)
@@ -768,7 +868,6 @@ end
 end
 end
 end
--- ROUTINE 2: AI MURDERER BOT (HUNTING ENGINE)
 if AutoPlayMurderAtivado then
 local vitimaAlvo = obterAlvoParaMurder()
 if vitimaAlvo then
